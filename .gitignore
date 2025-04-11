@@ -1,0 +1,13 @@
+.DS_Store
+
+# Rust / Cargo
+Cargo.lock
+target/
+
+# Expanded rust
+expanded.rs
+
+.idea/
+
+# Maven with auto-import, exclude module files
+*.iml

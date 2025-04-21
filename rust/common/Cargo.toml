@@ -1,7 +1,9 @@
 [package]
-name = "lottery"
-version.workspace = true
-edition = "2021"
+name = "common"
+edition.workspace = true
+
+[lib]
+crate-type = ['rlib', 'cdylib']
 
 [dependencies]
 pbc_contract_common.workspace = true
@@ -11,8 +13,6 @@ read_write_rpc_derive.workspace = true
 read_write_state_derive.workspace = true
 create_type_spec_derive.workspace = true
 pbc_contract_codegen.workspace = true
-pbc_zk.workspace = true
-serde = { version = "1.0", features = ["derive"] }
 
 [features]
 abi = [
@@ -21,10 +21,3 @@ abi = [
     "pbc_traits/abi",
     "create_type_spec_derive/abi",
 ]
-
-[package.metadata.zk]
-zk-compute-path = "src/zk_compute.rs"
-
-[lib]
-path = "src/lib.rs"
-crate-type = ["rlib", "cdylib"]

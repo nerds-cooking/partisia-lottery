@@ -2,190 +2,88 @@ extern crate pbc_contract_codegen;
 extern crate pbc_contract_common;
 
 use create_type_spec_derive::CreateTypeSpec;
+use pbc_contract_common::{
+    address::Address,
+    avl_tree_map::{AvlTreeMap, AvlTreeSet},
+    zk::SecretVarId,
+};
+use pbc_zk::Sbi8;
 use read_write_state_derive::ReadWriteState;
-use read_write_rpc_derive::ReadWriteRPC;
-use pbc_zk::{Sbi8, SecretVarId};
-use pbc_contract_common::address::Address;
-use pbc_contract_common::avl_tree_map::AvlTreeSet;
 
+pub const MAX_ENTRANTS: usize = 100;
+pub type EntriesArr = [Sbi8; MAX_ENTRANTS];
 
-pub const MAX_QUESTIONS: usize = 100;
-pub type AnswersArr = [Sbi8; MAX_QUESTIONS];
-
+/// Status of the lottery at any point in time
 #[derive(CreateTypeSpec, ReadWriteState, PartialEq, Clone, Debug)]
-pub enum GameStatus {
+pub enum LotteryStatus {
+    /// Lottery has been created but not accepting entries yet
     #[discriminant(1)]
     Pending {},
+
+    /// Lottery is open and accepting anonymous entries
     #[discriminant(2)]
-    InProgress {},
+    Open {},
+
+    /// Entry period has closed, winner selection in progress
     #[discriminant(3)]
-    Complete {},
+    Closed {},
+
+    /// Winner has been revealed and lottery is finalized
     #[discriminant(4)]
-    Published {}
+    Complete {},
 }
 
-
+/// Kind of secret or revealed data stored
 #[derive(ReadWriteState, Debug, Clone, CreateTypeSpec)]
 pub enum VariableKind {
-    /**
-     * Answers to the game
-     */
+    /// An anonymous entry in the lottery
     #[discriminant(1)]
-    GameAnswers {
-        game_id: u8,
-        length: u8
-    },
-    /**
-     * Entry by a user
-     */
+    Entry { lottery_id: u8, player: Address },
+
+    /// Revealed winner after selection
     #[discriminant(2)]
-    Entry {
-        game_id: u8,
-        player: Address
-    },
+    Winner { lottery_id: u8, winner: Address },
+
     #[discriminant(3)]
-    /**
-     * Result of an entry
-     */
-    Result {
-        game_id: u8,
-        player: Address,
-        score: i8
-    }
+    Result { lottery_id: u8, winner: Address },
 }
 
-#[derive(ReadWriteState, Debug, Clone, CreateTypeSpec)]
-#[repr(C)]
-pub struct LeaderboardPosition {
-    pub game_id: u8,
-    pub player: Address,
-    pub score: i8
-}
-
+/// Main state object for a lottery instance - this should NOT be used directly
+/// Only included for backward compatibility with existing code
+/// See the implementation in the main contract file instead
 #[derive(ReadWriteState, Debug, CreateTypeSpec)]
-pub struct GameState {
-    /**
-     * ID of the game
-     */
-    pub game_id: u8,
+pub struct LotteryState {
+    /// Unique ID for the lottery
+    pub lottery_id: u8,
 
-    /**
-     * Game creator
-     */
+    /// Creator of the lottery
     pub creator: Address,
 
-    /**
-     * Game status
-     */
-    pub game_status: GameStatus,
+    /// Current status of the lottery
+    pub status: LotteryStatus,
 
-    /**
-     * Deadline of the game (ms since epoch)
-     */
-    pub game_deadline: i64,
+    /// Deadline timestamp (ms since epoch) for entries
+    pub deadline: i64,
 
-    /**
-     * Amount of questions
-     */
-    pub question_count: u8,
+    pub token_address: Address,
 
-    /**
-     * Players that have submitted
-     */
-    pub players: AvlTreeSet<Address>,
+    pub entry_cost: u128, // Changed from u64 to u128 to match main contract
 
-    /**
-     * Secret var ID for game data
-     */
-    pub game_data_svar: Option<SecretVarId>,
-
-    /**
-     * Entry data
-     */
     pub entries_svars: Vec<SecretVarId>,
 
-    /**
-     * Final leaderboard
-     */
-    pub leaderboard: Vec<LeaderboardPosition>
+    pub entry_counts: AvlTreeMap<Address, u32>,
+
+    pub winner: Option<Address>,
+
+    // Added new fields from main contract
+    pub entries: Vec<Entry>,
+    pub prize_pool: u128,
+    pub winner_svar_id: Option<SecretVarId>,
 }
 
-impl GameState {
-    /// Create a new game state
-    pub fn new(game_id: u8, creator: Address, game_deadline: i64, question_count: u8) -> Self {
-        GameState {
-            game_id,
-            creator,
-            game_status: GameStatus::Pending {},
-            game_deadline,
-            question_count,
-            players: AvlTreeSet::new(),
-            game_data_svar: None,
-            entries_svars: vec![],
-            leaderboard: vec![],
-        }
-    }
-
-    /// Check if game is currently in progress
-    pub fn is_in_progress(&self) -> bool {
-        self.game_status == GameStatus::InProgress {}
-    }
-
-    /// Check if game is in completed state
-    pub fn is_complete(&self) -> bool {
-        self.game_status == GameStatus::Complete {}
-    }
-
-    /// Check if game is still open (Pending or InProgress)
-    pub fn is_open(&self) -> bool {
-        matches!(
-            self.game_status,
-            GameStatus::Pending {} | GameStatus::InProgress {}
-        )
-    }
-
-    /// Check if game deadline passed
-    pub fn is_game_deadline_passed(&self, current_time: i64) -> bool {
-        current_time < self.game_deadline
-    }
-
-    /// Transition game to InProgress
-    pub fn start(&mut self, game_data_svar: SecretVarId) {
-        self.game_status = GameStatus::InProgress {};
-        self.game_data_svar = Some(game_data_svar);
-    }
-
-    /// Transition game to Complete
-    pub fn complete(&mut self) {
-        self.game_status = GameStatus::Complete {};
-    }
-
-    /// Transition game to Publshed
-    pub fn publish(&mut self) {
-        self.game_status = GameStatus::Published {}
-    }
-
-    /// Add a player if they haven’t submitted yet
-    pub fn add_player(&mut self, player: Address) {
-        assert!(!self.has_player_submitted(&player), "player already submitted");
-
-        self.players.insert(player);    
-    }
-
-    /// Check if a player has already submitted
-    pub fn has_player_submitted(&self, player: &Address) -> bool {
-        self.players.contains(player)
-    }
-
-    /// Add a secret variable for a player's entry
-    pub fn add_entry_svar(&mut self, svar: SecretVarId) {
-        self.entries_svars.push(svar);
-    }
-
-    /// Add to leaderboard and sort
-    pub fn add_leaderboard_entry(&mut self, leaderboard_entry: LeaderboardPosition) {
-        self.leaderboard.push(leaderboard_entry);
-        
-        self.leaderboard.sort_by(|a, b| b.score.cmp(&a.score));
-    }
+// Added Entry struct to match main contract
+#[derive(ReadWriteState, Debug, CreateTypeSpec)]
+pub struct Entry {
+    pub address: Address,
+    pub secret_var_id: SecretVarId,
 }

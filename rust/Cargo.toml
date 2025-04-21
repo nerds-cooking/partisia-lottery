@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 
-members = ["lottery"]
+members = ["lottery", 'mpc20', 'common']
 
 [workspace.package]
 version = "4.603.0"

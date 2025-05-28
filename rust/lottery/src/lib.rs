@@ -45,6 +45,7 @@ pub struct LotteryState {
     pub token_address: Address,
     pub entry_cost: u128,
     pub prize_pool: u128,
+    pub random_seed: Option<SecretVarId>,
     pub entries_svars: Vec<SecretVarId>,
     pub entry_counts: AvlTreeMap<Address, u32>,
     pub winner_svar_id: Option<SecretVarId>,
@@ -66,6 +67,7 @@ impl LotteryState {
             deadline,
             winner: None,
             token_address,
+            random_seed: None,
             entry_cost,
             prize_pool: 0,
             entries_svars: vec![],
@@ -238,6 +240,8 @@ pub fn new_lottery(
         !state.has_lottery_id(params.lottery_id),
         "lottery id already used"
     );
+
+    // Change to secret input for the random seed
 
     let mut lottery_state = LotteryState::new(
         params.lottery_id,

@@ -1,0 +1,12 @@
+services:
+  mongo:
+    image: mongo:6
+    container_name: lottery_mongo
+    restart: always
+    ports:
+      - "27010:27017"
+    volumes:
+      - lottery_mongo_data:/data/db
+
+volumes:
+  lottery_mongo_data:

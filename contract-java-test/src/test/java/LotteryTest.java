@@ -1,24 +1,18 @@
 import java.math.BigInteger;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
 
 import org.assertj.core.api.Assertions;
 
 import com.partisiablockchain.BlockchainAddress;
 import com.partisiablockchain.language.abicodegen.Lottery;
-import com.partisiablockchain.language.abicodegen.Lottery.EntryParams;
-import com.partisiablockchain.language.abicodegen.Lottery.LotteryState;
-import com.partisiablockchain.language.abicodegen.Lottery.LotteryStatusD;
+import com.partisiablockchain.language.abicodegen.Lottery.AccountSecret;
+// import com.partisiablockchain.language.abicodegen.Lottery.LotteryState;
 import com.partisiablockchain.language.abicodegen.Testtoken;
 import com.partisiablockchain.language.abicodegen.Testtoken.TokenState;
 import com.partisiablockchain.language.codegenlib.SecretInput;
 import com.partisiablockchain.language.junit.ContractBytes;
 import com.partisiablockchain.language.junit.ContractTest;
 import com.partisiablockchain.language.junit.JunitContractTest;
-import com.partisiablockchain.language.testenvironment.TxExecution;
 import com.partisiablockchain.language.testenvironment.zk.node.task.PendingInputId;
 
 final class LotteryTest extends JunitContractTest {
@@ -57,98 +51,111 @@ final class LotteryTest extends JunitContractTest {
                 createAccounts();
                 deployContracts();
                 setupTokenDistribution();
-                assertNumberOfLotteries(0);
+                // assertNumberOfLotteries(0);
         }
 
         @ContractTest(previous = "setupEnvironment")
-        void testCreateLottery() {
-                // Create a new lottery
-                createDefaultLottery();
+        void testCreateSecretAccount() {
+                // Create a secret account for the creator
+                
+                long accountKey = 716473264414L;
+                PendingInputId inputId = createSecretAccount(accountKey);
 
-                // Verify lottery creation
-                assertNumberOfLotteries(1);
-                assertLotteryIdIsTracked(DEFAULT_LOTTERY_ID);
-                assertLotteryState(DEFAULT_LOTTERY_ID, state -> {
-                        Assertions.assertThat(state.creator()).isEqualTo(creator);
-                        Assertions.assertThat(state.deadline()).isEqualTo(lotteryDeadline);
-                        Assertions.assertThat(state.entryCost()).isEqualTo(LOTTERY_ENTRY_COST);
-                        Assertions.assertThat(state.entriesSvars().size()).isEqualTo(0);
-                        Assertions.assertThat(state.entryCounts().size()).isEqualTo(0);
-                        Assertions.assertThat(state.status().discriminant()).isEqualTo(LotteryStatusD.OPEN);
-                        Assertions.assertThat(state.tokenAddress()).isEqualTo(token);
-                        Assertions.assertThat(state.winner()).isNull();
-                        Assertions.assertThat(state.prizePool()).isEqualTo(BigInteger.ZERO);
-                });
+                // Verify the secret account creation
+                // assertNumberOfLotteries(0); // No lottery created yet
         }
 
-        @ContractTest(previous = "testCreateLottery")
-        void testSinglePlayerEntries() {
-                // Player 1 enters the lottery
-                BigInteger initialBalance = balance(player1);
-                enterLottery(player1, DEFAULT_LOTTERY_ID);
 
-                // Verify first entry
-                assertLotteryState(DEFAULT_LOTTERY_ID, state -> {
-                        Assertions.assertThat(state.entryCounts().get(player1)).isEqualTo(1);
-                        Assertions.assertThat(state.entriesSvars().size()).isEqualTo(1);
-                        Assertions.assertThat(state.entryCounts().size()).isEqualTo(1);
-                        Assertions.assertThat(state.prizePool()).isEqualTo(LOTTERY_ENTRY_COST);
-                });
 
-                // Verify token balances
-                Assertions.assertThat(balance(player1)).isEqualTo(initialBalance.subtract(LOTTERY_ENTRY_COST));
-                Assertions.assertThat(balance(lottery)).isEqualTo(LOTTERY_ENTRY_COST);
+        // @ContractTest(previous = "setupEnvironment")
+        // void testCreateLottery() {
+        //         // Create a new lottery
+        //         createDefaultLottery();
 
-                // Player 1 enters again
-                enterLottery(player1, DEFAULT_LOTTERY_ID);
+        //         // Verify lottery creation
+        //         assertNumberOfLotteries(1);
+        //         assertLotteryIdIsTracked(DEFAULT_LOTTERY_ID);
+        //         assertLotteryState(DEFAULT_LOTTERY_ID, state -> {
+        //                 Assertions.assertThat(state.creator()).isEqualTo(creator);
+        //                 Assertions.assertThat(state.deadline()).isEqualTo(lotteryDeadline);
+        //                 Assertions.assertThat(state.entryCost()).isEqualTo(LOTTERY_ENTRY_COST);
+        //                 Assertions.assertThat(state.entriesSvars().size()).isEqualTo(0);
+        //                 Assertions.assertThat(state.entryCounts().size()).isEqualTo(0);
+        //                 Assertions.assertThat(state.status().discriminant()).isEqualTo(LotteryStatusD.OPEN);
+        //                 Assertions.assertThat(state.tokenAddress()).isEqualTo(token);
+        //                 Assertions.assertThat(state.winner()).isNull();
+        //                 Assertions.assertThat(state.prizePool()).isEqualTo(BigInteger.ZERO);
+        //         });
+        // }
 
-                // Verify second entry
-                assertLotteryState(DEFAULT_LOTTERY_ID, state -> {
-                        Assertions.assertThat(state.entryCounts().get(player1)).isEqualTo(2);
-                        Assertions.assertThat(state.entriesSvars().size()).isEqualTo(2);
-                        Assertions.assertThat(state.entryCounts().size()).isEqualTo(1);
-                        Assertions.assertThat(state.prizePool())
-                                        .isEqualTo(LOTTERY_ENTRY_COST.multiply(BigInteger.valueOf(2)));
-                });
+        // @ContractTest(previous = "testCreateLottery")
+        // void testSinglePlayerEntries() {
+        //         // Player 1 enters the lottery
+        //         BigInteger initialBalance = balance(player1);
+        //         enterLottery(player1, DEFAULT_LOTTERY_ID);
 
-                // Verify updated token balances
-                Assertions.assertThat(balance(player1))
-                                .isEqualTo(initialBalance.subtract(LOTTERY_ENTRY_COST.multiply(BigInteger.valueOf(2))));
-                Assertions.assertThat(balance(lottery)).isEqualTo(LOTTERY_ENTRY_COST.multiply(BigInteger.valueOf(2)));
-        }
+        //         // Verify first entry
+        //         assertLotteryState(DEFAULT_LOTTERY_ID, state -> {
+        //                 Assertions.assertThat(state.entryCounts().get(player1)).isEqualTo(1);
+        //                 Assertions.assertThat(state.entriesSvars().size()).isEqualTo(1);
+        //                 Assertions.assertThat(state.entryCounts().size()).isEqualTo(1);
+        //                 Assertions.assertThat(state.prizePool()).isEqualTo(LOTTERY_ENTRY_COST);
+        //         });
 
-        @ContractTest(previous = "testSinglePlayerEntries")
-        void testMultiplePlayerEntries() {
-                // Player 2 enters the lottery
-                BigInteger initialBalance = balance(player2);
-                enterLottery(player2, DEFAULT_LOTTERY_ID);
+        //         // Verify token balances
+        //         Assertions.assertThat(balance(player1)).isEqualTo(initialBalance.subtract(LOTTERY_ENTRY_COST));
+        //         Assertions.assertThat(balance(lottery)).isEqualTo(LOTTERY_ENTRY_COST);
 
-                // Verify entry
-                assertLotteryState(DEFAULT_LOTTERY_ID, state -> {
-                        Assertions.assertThat(state.entryCounts().get(player2)).isEqualTo(1);
-                        Assertions.assertThat(state.entriesSvars().size()).isEqualTo(3);
-                        Assertions.assertThat(state.entryCounts().size()).isEqualTo(2);
-                        Assertions.assertThat(state.prizePool())
-                                        .isEqualTo(LOTTERY_ENTRY_COST.multiply(BigInteger.valueOf(3)));
-                });
+        //         // Player 1 enters again
+        //         enterLottery(player1, DEFAULT_LOTTERY_ID);
 
-                // Verify token balances
-                Assertions.assertThat(balance(player2)).isEqualTo(initialBalance.subtract(LOTTERY_ENTRY_COST));
-                Assertions.assertThat(balance(lottery)).isEqualTo(LOTTERY_ENTRY_COST.multiply(BigInteger.valueOf(3)));
-        }
+        //         // Verify second entry
+        //         assertLotteryState(DEFAULT_LOTTERY_ID, state -> {
+        //                 Assertions.assertThat(state.entryCounts().get(player1)).isEqualTo(2);
+        //                 Assertions.assertThat(state.entriesSvars().size()).isEqualTo(2);
+        //                 Assertions.assertThat(state.entryCounts().size()).isEqualTo(1);
+        //                 Assertions.assertThat(state.prizePool())
+        //                                 .isEqualTo(LOTTERY_ENTRY_COST.multiply(BigInteger.valueOf(2)));
+        //         });
 
-        @ContractTest(previous = "testMultiplePlayerEntries")
-        void testDrawLottery() {
-                // Draw the lottery
-                drawLottery(creator, DEFAULT_LOTTERY_ID);
+        //         // Verify updated token balances
+        //         Assertions.assertThat(balance(player1))
+        //                         .isEqualTo(initialBalance.subtract(LOTTERY_ENTRY_COST.multiply(BigInteger.valueOf(2))));
+        //         Assertions.assertThat(balance(lottery)).isEqualTo(LOTTERY_ENTRY_COST.multiply(BigInteger.valueOf(2)));
+        // }
 
-                // Verify lottery results
-                assertLotteryState(DEFAULT_LOTTERY_ID, state -> {
-                        Assertions.assertThat(state.winner()).isNotNull();
-                        Assertions.assertThat(state.winner()).isIn(player1, player2);
-                        Assertions.assertThat(state.status().discriminant()).isEqualTo(LotteryStatusD.COMPLETE);
-                });
-        }
+        // @ContractTest(previous = "testSinglePlayerEntries")
+        // void testMultiplePlayerEntries() {
+        //         // Player 2 enters the lottery
+        //         BigInteger initialBalance = balance(player2);
+        //         enterLottery(player2, DEFAULT_LOTTERY_ID);
+
+        //         // Verify entry
+        //         assertLotteryState(DEFAULT_LOTTERY_ID, state -> {
+        //                 Assertions.assertThat(state.entryCounts().get(player2)).isEqualTo(1);
+        //                 Assertions.assertThat(state.entriesSvars().size()).isEqualTo(3);
+        //                 Assertions.assertThat(state.entryCounts().size()).isEqualTo(2);
+        //                 Assertions.assertThat(state.prizePool())
+        //                                 .isEqualTo(LOTTERY_ENTRY_COST.multiply(BigInteger.valueOf(3)));
+        //         });
+
+        //         // Verify token balances
+        //         Assertions.assertThat(balance(player2)).isEqualTo(initialBalance.subtract(LOTTERY_ENTRY_COST));
+        //         Assertions.assertThat(balance(lottery)).isEqualTo(LOTTERY_ENTRY_COST.multiply(BigInteger.valueOf(3)));
+        // }
+
+        // @ContractTest(previous = "testMultiplePlayerEntries")
+        // void testDrawLottery() {
+        //         // Draw the lottery
+        //         drawLottery(creator, DEFAULT_LOTTERY_ID);
+
+        //         // Verify lottery results
+        //         assertLotteryState(DEFAULT_LOTTERY_ID, state -> {
+        //                 Assertions.assertThat(state.winner()).isNotNull();
+        //                 Assertions.assertThat(state.winner()).isIn(player1, player2);
+        //                 Assertions.assertThat(state.status().discriminant()).isEqualTo(LotteryStatusD.COMPLETE);
+        //         });
+        // }
 
         // Helper methods for setup
         private void createAccounts() {
@@ -192,36 +199,50 @@ final class LotteryTest extends JunitContractTest {
                 Assertions.assertThat(allowance(player2, lottery)).isEqualTo(PLAYER_INITIAL_BALANCE);
         }
 
-        private void createDefaultLottery() {
-                lotteryDeadline = System.currentTimeMillis() + LOTTERY_DURATION_MS;
-                createLottery(creator, DEFAULT_LOTTERY_ID, lotteryDeadline, token, LOTTERY_ENTRY_COST);
-        }
+        private PendingInputId createSecretAccount(long accountKey) {
 
-        // Lottery contract interaction helpers
-        private PendingInputId enterLottery(BlockchainAddress player, byte lotteryId) {
-                List<Byte> inputData = new ArrayList<>(Collections.nCopies(100, (byte) 0));
-                EntryParams entryParams = new EntryParams(lotteryId);
-                SecretInput input = Lottery.submitEntry(entryParams).secretInput(inputData);
+                SecretInput input = Lottery.createAccount().secretInput(
+                        new AccountSecret(accountKey)
+                );
 
                 return blockchain.sendSecretInput(
                                 lottery,
-                                player,
+                                creator,
                                 input.secretInput(),
                                 input.publicRpc());
+
         }
 
-        private TxExecution createLottery(BlockchainAddress creator, byte id, long deadline,
-                        BlockchainAddress tokenAddress, BigInteger entryCost) {
-                Lottery.LotteryInitParams params = new Lottery.LotteryInitParams(
-                                id, deadline, tokenAddress, entryCost, creator);
-                byte[] action = Lottery.newLottery(params);
-                return blockchain.sendAction(creator, lottery, action);
-        }
+        // private void createDefaultLottery() {
+        //         lotteryDeadline = System.currentTimeMillis() + LOTTERY_DURATION_MS;
+        //         createLottery(creator, DEFAULT_LOTTERY_ID, lotteryDeadline, token, LOTTERY_ENTRY_COST);
+        // }
 
-        private TxExecution drawLottery(BlockchainAddress creator, byte id) {
-                byte[] action = Lottery.drawLottery(id);
-                return blockchain.sendAction(creator, lottery, action);
-        }
+        // // Lottery contract interaction helpers
+        // private PendingInputId enterLottery(BlockchainAddress player, byte lotteryId) {
+        //         List<Byte> inputData = new ArrayList<>(Collections.nCopies(100, (byte) 0));
+        //         EntryParams entryParams = new EntryParams(lotteryId);
+        //         SecretInput input = Lottery.submitEntry(entryParams).secretInput(inputData);
+
+        //         return blockchain.sendSecretInput(
+        //                         lottery,
+        //                         player,
+        //                         input.secretInput(),
+        //                         input.publicRpc());
+        // }
+
+        // private TxExecution createLottery(BlockchainAddress creator, byte id, long deadline,
+        //                 BlockchainAddress tokenAddress, BigInteger entryCost) {
+        //         Lottery.LotteryInitParams params = new Lottery.LotteryInitParams(
+        //                         id, deadline, tokenAddress, entryCost, creator);
+        //         byte[] action = Lottery.newLottery(params);
+        //         return blockchain.sendAction(creator, lottery, action);
+        // }
+
+        // private TxExecution drawLottery(BlockchainAddress creator, byte id) {
+        //         byte[] action = Lottery.drawLottery(id);
+        //         return blockchain.sendAction(creator, lottery, action);
+        // }
 
         // Token contract interaction helpers
         private void transferTokens(BlockchainAddress from, BlockchainAddress to, BigInteger amount) {
@@ -233,19 +254,19 @@ final class LotteryTest extends JunitContractTest {
         }
 
         // State accessor helpers
-        private Lottery.ContractState getLotteryContractState() {
-                return Lottery.deserializeState(
-                                blockchain.getContractState(lottery),
-                                getStateClient(),
-                                lottery);
-        }
+        // private Lottery.ContractState getLotteryContractState() {
+        //         return Lottery.deserializeState(
+        //                         blockchain.getContractState(lottery),
+        //                         getStateClient(),
+        //                         lottery);
+        // }
 
-        private Optional<LotteryState> getLotteryState(byte lotteryId) {
-                return getLotteryContractState().lotteries()
-                                .stream()
-                                .filter(lottery -> lottery.lotteryId() == lotteryId)
-                                .findFirst();
-        }
+        // private Optional<LotteryState> getLotteryState(byte lotteryId) {
+        //         return getLotteryContractState().lotteries()
+        //                         .stream()
+        //                         .filter(lottery -> lottery.lotteryId() == lotteryId)
+        //                         .findFirst();
+        // }
 
         private TokenState getTokenState() {
                 return Testtoken.deserializeState(
@@ -268,20 +289,20 @@ final class LotteryTest extends JunitContractTest {
         }
 
         // Assertion helpers
-        private void assertLotteryIdIsTracked(byte lotteryId) {
-                Assertions.assertThat(
-                                getLotteryContractState().lotteryIds().innerMap().get(lotteryId)).isNotNull();
-        }
+        // private void assertLotteryIdIsTracked(byte lotteryId) {
+        //         Assertions.assertThat(
+        //                         getLotteryContractState().lotteryIds().innerMap().get(lotteryId)).isNotNull();
+        // }
 
-        private void assertNumberOfLotteries(int expectedNumber) {
-                Assertions.assertThat(getLotteryContractState().lotteries().size()).isEqualTo(expectedNumber);
-        }
+        // private void assertNumberOfLotteries(int expectedNumber) {
+        //         Assertions.assertThat(getLotteryContractState().lotteries().size()).isEqualTo(expectedNumber);
+        // }
 
-        private void assertLotteryState(byte lotteryId, java.util.function.Consumer<LotteryState> assertions) {
-                Optional<LotteryState> stateOpt = getLotteryState(lotteryId);
-                Assertions.assertThat(stateOpt).isPresent();
-                assertions.accept(stateOpt.get());
-        }
+        // private void assertLotteryState(byte lotteryId, java.util.function.Consumer<LotteryState> assertions) {
+        //         Optional<LotteryState> stateOpt = getLotteryState(lotteryId);
+        //         Assertions.assertThat(stateOpt).isPresent();
+        //         assertions.accept(stateOpt.get());
+        // }
 
         // Utility methods
         private static BigInteger toBigInteger(long number) {

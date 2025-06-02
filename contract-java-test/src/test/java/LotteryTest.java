@@ -1,11 +1,13 @@
 import java.math.BigInteger;
 import java.nio.file.Path;
+import java.util.Arrays;
 
 import org.assertj.core.api.Assertions;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.partisiablockchain.BlockchainAddress;
 import com.partisiablockchain.language.abicodegen.Lottery;
-import com.partisiablockchain.language.abicodegen.Lottery.AccountSecret;
+import com.partisiablockchain.language.abicodegen.Lottery.AccountCreationSecret;
 // import com.partisiablockchain.language.abicodegen.Lottery.LotteryState;
 import com.partisiablockchain.language.abicodegen.Testtoken;
 import com.partisiablockchain.language.abicodegen.Testtoken.TokenState;
@@ -14,6 +16,7 @@ import com.partisiablockchain.language.junit.ContractBytes;
 import com.partisiablockchain.language.junit.ContractTest;
 import com.partisiablockchain.language.junit.JunitContractTest;
 import com.partisiablockchain.language.testenvironment.zk.node.task.PendingInputId;
+import com.secata.stream.CompactBitArray;
 
 final class LotteryTest extends JunitContractTest {
         // Contract paths
@@ -58,8 +61,14 @@ final class LotteryTest extends JunitContractTest {
         void testCreateSecretAccount() {
                 // Create a secret account for the creator
                 
-                long accountKey = 716473264414L;
-                PendingInputId inputId = createSecretAccount(accountKey);
+                BigInteger accountKey = BigInteger.valueOf(716473264414L);
+                createSecretAccount(accountKey, creator);
+
+                assertSecretVariablesAmount(1);
+                assertSecretVariableOwner(2, creator);
+
+                assertSecretBalance(creator, BigInteger.ZERO); // Initial balance is zero
+                
 
                 // Verify the secret account creation
                 // assertNumberOfLotteries(0); // No lottery created yet
@@ -199,15 +208,15 @@ final class LotteryTest extends JunitContractTest {
                 Assertions.assertThat(allowance(player2, lottery)).isEqualTo(PLAYER_INITIAL_BALANCE);
         }
 
-        private PendingInputId createSecretAccount(long accountKey) {
+        private PendingInputId createSecretAccount(BigInteger accountKey, BlockchainAddress wallet) {
 
                 SecretInput input = Lottery.createAccount().secretInput(
-                        new AccountSecret(accountKey)
+                        new AccountCreationSecret(accountKey)
                 );
 
                 return blockchain.sendSecretInput(
                                 lottery,
-                                creator,
+                                wallet,
                                 input.secretInput(),
                                 input.publicRpc());
 
@@ -254,12 +263,12 @@ final class LotteryTest extends JunitContractTest {
         }
 
         // State accessor helpers
-        // private Lottery.ContractState getLotteryContractState() {
-        //         return Lottery.deserializeState(
-        //                         blockchain.getContractState(lottery),
-        //                         getStateClient(),
-        //                         lottery);
-        // }
+        private Lottery.ContractState getLotteryContractState() {
+                return Lottery.deserializeState(
+                                blockchain.getContractState(lottery),
+                                getStateClient(),
+                                lottery);
+        }
 
         // private Optional<LotteryState> getLotteryState(byte lotteryId) {
         //         return getLotteryContractState().lotteries()
@@ -303,6 +312,77 @@ final class LotteryTest extends JunitContractTest {
         //         Assertions.assertThat(stateOpt).isPresent();
         //         assertions.accept(stateOpt.get());
         // }
+
+        private void assertSecretVariablesAmount(int assertVarAmount) {
+                final int realVarAmount =
+                        blockchain.getContractStateJson(lottery).getNode("/variables").size();
+
+                Assertions.assertThat(realVarAmount).isEqualTo(assertVarAmount);
+        }
+
+        private void assertSecretVariableOwner(int variableId, BlockchainAddress assertOwner) {
+                String realOwner = "";
+                JsonNode variablesNode =
+                        blockchain.getContractStateJson(lottery).getNode("/variables");
+
+                for (int i = 0; i < variablesNode.size(); i++) {
+                final int id = variablesNode.get(i).get("value").get("id").asInt();
+                        if (id == variableId) {
+                                realOwner = variablesNode.get(i).get("value").get("owner").asText();
+                                break;
+                        }
+                }
+
+                String assertOwnerString = assertOwner.writeAsString();
+                Assertions.assertThat(realOwner).isEqualTo(assertOwnerString);
+        }
+
+        record AccountBalance(BigInteger accountKey, BigInteger balance) {
+        }
+
+        private void assertSecretBalance(BlockchainAddress assetOwner, BigInteger expectedBalance) {
+                Lottery.ContractState cstate = getLotteryContractState();
+
+                Lottery.SecretVarId varId = cstate.accounts().get(assetOwner);
+
+                CompactBitArray varVal = zkNodes.getSecretVariable(lottery, varId.rawId());
+
+                // Deserialize from CompactBitArray to AccountBalance
+                AccountBalance accountBalance = deserializeAccountBalance(varVal);
+
+                // Assert the balance matches the expected value
+                Assertions.assertThat(accountBalance.balance()).isEqualTo(expectedBalance);
+        }
+
+        private AccountBalance deserializeAccountBalance(CompactBitArray varVal) {
+                byte[] data = varVal.data();
+                
+                // In Rust, AccountBalance struct has:
+                // 1. account_key: AccountKey (Sbu128 - 16 bytes)
+                // 2. balance: SecretAccountBalance (Sbu128 - 16 bytes)
+                
+                // The actual data might be stored in little-endian format
+                // Extract account key bytes (first 16 bytes)
+                byte[] accountKeyBytes = Arrays.copyOfRange(data, 0, 16);
+                // Convert accountKeyBytes to BigInteger (correct endianness)
+                BigInteger accountKey = new BigInteger(1, reverseBytes(accountKeyBytes));
+                
+                // Extract balance bytes (next 16 bytes)
+                byte[] balanceBytes = Arrays.copyOfRange(data, 16, 32);
+                // Convert balanceBytes to BigInteger (correct endianness)
+                BigInteger balance = new BigInteger(1, reverseBytes(balanceBytes));
+                
+                return new AccountBalance(accountKey, balance);
+        }
+        
+        // Helper to reverse byte array (for converting little-endian to big-endian)
+        private byte[] reverseBytes(byte[] bytes) {
+                byte[] reversed = new byte[bytes.length];
+                for (int i = 0; i < bytes.length; i++) {
+                        reversed[i] = bytes[bytes.length - i - 1];
+                }
+                return reversed;
+        }
 
         // Utility methods
         private static BigInteger toBigInteger(long number) {

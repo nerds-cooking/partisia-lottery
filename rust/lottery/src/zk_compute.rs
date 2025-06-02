@@ -7,7 +7,7 @@ const VARIABLE_KIND_DISCRIMINANT_USER_ACCOUNT: u8 = 3;
 const VARIABLE_KIND_DISCRIMINANT_LOTTERY_ACCOUNT: u8 = 4;
 
 // Can represent a user account OR a lottery account
-type AccountKey = Sbu64;
+type AccountKey = Sbu128;
 type SecretAccountBalance = Sbu128;
 
 // Account balance for a user or a lottery
@@ -27,7 +27,7 @@ pub struct AccountBalanceMetadata {
 
 /// Secret-shared information for creating new users (used for input on account creation).
 #[derive(Debug, Clone, Copy, CreateTypeSpec, SecretBinary)]
-pub struct AccountSecret {
+pub struct AccountCreationSecret {
     /// Secret-shared key used to transfer to the user that is being created.
     account_key: AccountKey,
 }
@@ -74,7 +74,7 @@ fn find_recipient_balance(
         }
     }
 
-    if recipient_balance.recipient_balance.account_key == Sbu64::from(0) {
+    if recipient_balance.recipient_balance.account_key == Sbu128::from(0) {
         recipient_balance.exists = Sbu1::from(false);
     }
 
@@ -126,14 +126,14 @@ fn update_all_balances(
 /// used yet. If the `account_key` has been used, it will create a new account with `account_key` zero.
 #[zk_compute(shortname = 0x70)]
 pub fn create_account(sender_balance_id: SecretVarId) -> AccountBalance {
-    let mut account_details: AccountBalance =
-        load_sbi::<AccountBalance>(sender_balance_id);
+    let mut account_details: AccountCreationSecret =
+        load_sbi::<AccountCreationSecret>(sender_balance_id);
 
     let recipient_balance =
         find_recipient_balance(account_details.account_key, sender_balance_id);
 
     let account_key = if recipient_balance.exists {
-        Sbu64::from(0)
+        Sbu128::from(0)
     } else {
         account_details.account_key
     };

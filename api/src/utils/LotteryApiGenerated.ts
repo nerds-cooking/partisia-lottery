@@ -3,6 +3,7 @@
 // @ts-nocheck
 // noinspection ES6UnusedImports
 import {
+  AbiBitInput,
   AbiBitOutput,
   AbiByteInput,
   AbiByteOutput,
@@ -10,10 +11,15 @@ import {
   AbiOutput,
   AvlTreeMap,
   BlockchainAddress,
+  BlockchainPublicKey,
   BlockchainStateClient,
+  BlsPublicKey,
+  BlsSignature,
   BN,
+  Hash,
+  Signature,
+  StateWithClient,
   SecretInputBuilder,
-  StateWithClient
 } from "@partisiablockchain/abi-client";
 
 type Option<K> = K | undefined;
@@ -131,7 +137,7 @@ export function createAccount(): SecretInputBuilder<AccountCreationSecret> {
   const _secretInput = (secret_input_lambda: AccountCreationSecret): CompactBitArray => AbiBitOutput.serialize((_out) => {
     serializeAccountCreationSecret(_out, secret_input_lambda);
   });
-  return new SecretInputBuilder(_publicRpc, _secretInput);
+  return new SecretInputBuilder<>(_publicRpc, _secretInput);
 }
 
 export function deserializeState(state: StateWithClient): ContractState;

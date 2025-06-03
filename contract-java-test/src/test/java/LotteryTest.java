@@ -15,6 +15,8 @@ import com.partisiablockchain.language.codegenlib.SecretInput;
 import com.partisiablockchain.language.junit.ContractBytes;
 import com.partisiablockchain.language.junit.ContractTest;
 import com.partisiablockchain.language.junit.JunitContractTest;
+import com.partisiablockchain.language.junit.exceptions.ActionFailureException;
+import com.partisiablockchain.language.testenvironment.TxExecution;
 import com.partisiablockchain.language.testenvironment.zk.node.task.PendingInputId;
 import com.secata.stream.CompactBitArray;
 
@@ -73,6 +75,82 @@ final class LotteryTest extends JunitContractTest {
                 // Verify the secret account creation
                 // assertNumberOfLotteries(0); // No lottery created yet
         }
+
+        @ContractTest(previous = "testCreateSecretAccount")
+        void testPurchaseCredits() {
+                // Purchase credits for the creator
+                BigInteger credits = toBigInteger(1000);
+
+                approveTokens(player1, lottery, credits);
+
+                BigInteger accountKey = BigInteger.valueOf(716473264415L);
+                createSecretAccount(accountKey, player1);
+
+                purchaseCredits(player1, credits);
+
+                // Assert the secret balance of the creator
+                assertSecretBalance(player1, credits);
+        }
+
+        @ContractTest(previous = "testCreateSecretAccount")
+        void testPurchaseCreditsWithoutAccount() {
+                // Attempt to purchase credits without creating a secret account
+                BigInteger credits = toBigInteger(500);
+
+                approveTokens(player2, lottery, credits);
+
+                Assertions.assertThatThrownBy(() -> {
+                        purchaseCredits(player2, credits);
+                }).isInstanceOf(ActionFailureException.class)
+                  .hasMessageContaining("Cannot purchase credits for an account that does not exist");
+        }
+
+        @ContractTest(previous = "testCreateSecretAccount")
+        void testPurchaseCreditsWithInsufficientBalance() {
+                // Attempt to purchase credits with insufficient balance
+                BigInteger insufficientCredits = toBigInteger(1000000); // More than available
+
+                approveTokens(creator, lottery, insufficientCredits);
+
+                Assertions.assertThatThrownBy(() -> {
+                        purchaseCredits(creator, insufficientCredits);
+                }).isInstanceOf(ActionFailureException.class)
+                  .hasMessageContaining("Insufficient TT tokens for transfer!");
+        }
+
+        @ContractTest(previous = "testPurchaseCreditsWithInsufficientBalance")
+        void testRedeemCreditsWithInsufficientBalance() {
+                // Attempt to redeem credits with insufficient balance
+                BigInteger insufficientCredits = toBigInteger(1000000); // More than available
+
+                Assertions.assertThatThrownBy(() -> {
+                        redeemCredits(creator, insufficientCredits);
+                }).isInstanceOf(ActionFailureException.class)
+                  .hasMessageContaining("Insufficient credits to redeem");
+        }
+
+        // @ContractTest(previous = "testPurchaseCreditsWithoutAccount")
+        // void testRedeemCreditsWithoutAccount(){
+        //         // Attempt to redeem credits without creating a secret account
+        //         BigInteger credits = toBigInteger(500);
+
+        //         Assertions.assertThatThrownBy(() -> {
+        //                 redeemCredits(player2, credits);
+        //         }).isInstanceOf(ActionFailureException.class)
+        //           .hasMessageContaining("Cannot redeem credits for an account that does not exist");
+        // }
+
+        // @ContractTest(previous = "testPurchaseCredits")
+        // void testRedeemCredits() {
+                // Redeem credits for the creator
+        //         BigInteger credits = toBigInteger(500);
+
+        //         redeemCredits(player1, credits);
+
+        //         // Assert the secret balance of the creator (1000 balance - 500 redeemed)
+        //         assertSecretBalance(creator, toBigInteger(500)); // After redeeming, balance should be zero
+        // }
+
 
 
 
@@ -184,7 +262,10 @@ final class LotteryTest extends JunitContractTest {
                 token = blockchain.deployContract(deployer, TOKEN_CONTRACT, initTokenRpc);
 
                 // Deploy lottery contract
-                byte[] initLotteryRpc = Lottery.initialize();
+                byte[] initLotteryRpc = Lottery.initialize(
+                        token,
+                        DECIMALS
+                );
                 lottery = blockchain.deployZkContract(deployer, LOTTERY_CONTRACT, initLotteryRpc);
         }
 
@@ -220,6 +301,16 @@ final class LotteryTest extends JunitContractTest {
                                 input.secretInput(),
                                 input.publicRpc());
 
+        }
+
+        private TxExecution purchaseCredits(BlockchainAddress wallet, BigInteger credits) {
+                byte[] action = Lottery.purchaseCredits(credits);
+                return blockchain.sendAction(wallet, lottery, action);
+        }
+
+        private TxExecution redeemCredits(BlockchainAddress wallet, BigInteger credits) {
+                byte[] action = Lottery.redeemCredits(credits);
+                return blockchain.sendAction(wallet, lottery, action);
         }
 
         // private void createDefaultLottery() {

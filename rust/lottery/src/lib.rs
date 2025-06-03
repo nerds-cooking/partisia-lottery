@@ -70,6 +70,10 @@ pub enum VariableKind {
         /// owned by this address.
         owner: Address,
     },
+    #[discriminant(7)]
+    WorkResult {
+        owner: Address
+    }
 }
 
 
@@ -84,6 +88,22 @@ pub enum WorkListItem {
         /// Identifier of secret-shared [`zk_compute::AccountCreationSecret`].
         account_creation_id: SecretVarId,
     },
+    /// Created by the [`purchase_credits`] invocation.
+    #[discriminant(2)]
+    PendingPurchaseCredits {
+        /// Account to purchase credits for
+        account: Address,
+        // Amount of credits to purchase
+        credits: u128,
+    },
+    /// Created by the [`redeem_credits`] invocation.
+    #[discriminant(3)]
+    PendingRedeemCredits {
+        /// Account to redeem credits for
+        account: Address,
+        // Amount of credits to redeem
+        credits: u128,
+    },
 }
 
 
@@ -91,6 +111,9 @@ pub enum WorkListItem {
 #[repr(C)]
 #[state]
 pub struct ContractState {
+    token: Address,
+    token_decimals: u32,
+
     // Set of accounts (users or lotteries) and their secret var IDs for tracking balances
     accounts: AvlTreeMap<Address, SecretVarId>,
 
@@ -102,8 +125,10 @@ pub struct ContractState {
 
 impl ContractState {
     /// Create a new contract state (used in `initialize`)
-    pub fn new() -> Self {
+    pub fn new(token: Address, token_decimals: u32) -> Self {
         ContractState {
+            token,
+            token_decimals,
             accounts: AvlTreeMap::new(),
 
             work_queue: VecDeque::new(),
@@ -235,6 +260,54 @@ impl ContractState {
                     &VariableKind::UserAccount { owner: account },
                 ))
             }
+            WorkListItem::PendingPurchaseCredits { account, credits } => {
+                if !self.has_account(&account) {
+                    fail_safely(
+                        context,
+                        event_groups,
+                        "Cannot purchase credits for an account that does not exist",
+                    );
+                    return self.attempt_to_start_next_in_queue(
+                        context,
+                        zk_state,
+                        zk_state_change,
+                        event_groups,
+                    );
+                }
+
+                zk_state_change.push(zk_compute::mint_credits_start(
+                    self.get_account_var_id(&account).unwrap(),
+                    credits,
+                    Some(SHORTNAME_SIMPLE_WORK_ITEM_COMPLETE),
+                    &VariableKind::UserAccount { owner: account }
+                ));
+            }
+            WorkListItem::PendingRedeemCredits { account, credits } => {
+
+                if !self.has_account(&account) {
+                    fail_safely(
+                        context,
+                        event_groups,
+                        "Cannot redeem credits for an account that does not exist",
+                    );
+                    return self.attempt_to_start_next_in_queue(
+                        context,
+                        zk_state,
+                        zk_state_change,
+                        event_groups,
+                    );
+                }
+
+                zk_state_change.push(zk_compute::burn_credits_start(
+                    self.get_account_var_id(&account).unwrap(),
+                    credits,
+                    Some(SHORTNAME_WITHDRAW_COMPLETE),
+                    [
+                        &VariableKind::WorkResult { owner: account },
+                        &VariableKind::UserAccount { owner: account }
+                    ]
+                ));
+            }
         };
     }
 
@@ -248,6 +321,14 @@ impl ContractState {
         event_groups: &mut Vec<EventGroup>,
         worklist_item: WorkListItem,
     ) {
+
+        // match worklist_item {
+        //     WorkListItem::PendingRedeemCredits { account, credits } => {
+        //         assert!(false, "A: {:?}, B: {:?}", account, credits);
+        //     }
+        //     _ => {}
+        // }
+
         self.work_queue.push_back(worklist_item);
         self.attempt_to_start_next_in_queue(context, zk_state, zk_state_change, event_groups)
     }
@@ -269,8 +350,16 @@ impl ContractState {
 }
 
 #[init(zk = true)]
-pub fn initialize(context: ContractContext, _zk_state: ZkState<VariableKind>) -> ContractState {
-    ContractState::new()
+pub fn initialize(
+    context: ContractContext,
+    _zk_state: ZkState<VariableKind>,
+    token: Address,
+    token_decimals: u32,
+) -> ContractState {
+    ContractState::new(
+        token,
+        token_decimals,
+    )
 }
 
 
@@ -309,6 +398,7 @@ pub fn create_account_inputted(
     ) -> (ContractState, Vec<EventGroup>, Vec<ZkStateChange>) {
     let mut zk_state_change = vec![];
     let mut event_groups = vec![];
+
     state.schedule_new_work_item(
         &context,
         &zk_state,
@@ -319,6 +409,7 @@ pub fn create_account_inputted(
             account_creation_id,
         },
     );
+
     (state, event_groups, zk_state_change)
 }
 
@@ -345,6 +436,148 @@ pub fn simple_work_item_complete(
     trigger_continue_queue_if_needed(context, &state, &mut event_groups);
 
     (state, event_groups, zk_state_change)
+}
+
+
+#[action(shortname = 0x10, zk = true)]
+pub fn purchase_credits(
+    context: ContractContext,
+    mut state: ContractState,
+    zk_state: ZkState<VariableKind>,
+    _credits: u128,
+) -> (ContractState, Vec<EventGroup>, Vec<ZkStateChange>) {
+    let mut zk_state_change = vec![];
+
+
+    let mut event_group = EventGroup::builder();
+    event_group
+        .call(state.token, token_contract_transfer_from())
+        .argument(context.sender)
+        .argument(context.contract_address)
+        .argument(_credits)
+        .done();
+
+
+    let mut event_groups = vec![
+        event_group.build()
+    ];
+    
+
+    state.schedule_new_work_item(
+        &context,
+        &zk_state,
+        &mut zk_state_change,
+        &mut event_groups,
+        WorkListItem::PendingPurchaseCredits {
+            account: context.sender,
+            credits: _credits
+        }
+    );
+
+    (state, event_groups, zk_state_change)
+}
+
+
+#[action(shortname = 0x11, zk = true)]
+pub fn redeem_credits(
+    context: ContractContext,
+    mut state: ContractState,
+    zk_state: ZkState<VariableKind>,
+    _credits: u128,
+) -> (ContractState, Vec<EventGroup>, Vec<ZkStateChange>) {
+    let mut zk_state_change = vec![];
+
+    let mut event_groups = vec![];
+
+    state.schedule_new_work_item(
+        &context,
+        &zk_state,
+        &mut zk_state_change,
+        &mut event_groups,
+        WorkListItem::PendingRedeemCredits {
+            account: context.sender,
+            credits: _credits
+        }
+    );
+
+    (state, event_groups, zk_state_change)
+}
+
+#[zk_on_compute_complete(shortname = 0x53)]
+pub fn withdraw_complete(
+    context: ContractContext,
+    mut state: ContractState,
+    zk_state: ZkState<VariableKind>,
+    output_variables: Vec<SecretVarId>,
+) -> (ContractState, Vec<EventGroup>, Vec<ZkStateChange>) {
+
+    let result_id: SecretVarId = *output_variables.get(1).unwrap();
+
+    // Start next in queue
+    let mut zk_state_change = vec![];
+    let mut event_groups = vec![];
+
+    // Move all variables to their expected owners
+    state.transfer_variables_to_owner(&zk_state, output_variables, &mut zk_state_change);
+    state.clean_up_redundant_secret_variables(&mut zk_state_change);
+    trigger_continue_queue_if_needed(context, &state, &mut event_groups);
+
+    zk_state_change.push(ZkStateChange::OpenVariables {
+        variables: vec![result_id],
+    });
+
+    (state, event_groups, zk_state_change)
+}
+
+#[zk_on_variables_opened]
+pub fn withdraw_result_opened(
+    context: ContractContext,
+    state: ContractState,
+    zk_state: ZkState<VariableKind>,
+    opened_variables: Vec<SecretVarId>,
+) -> (ContractState, Vec<EventGroup>, Vec<ZkStateChange>) {
+
+    // Determine result
+    let result_id: SecretVarId = *opened_variables.first().unwrap();
+    let result_variable = zk_state.get_variable(result_id).unwrap();
+    let result = read_result(&result_variable);
+
+    // Always remove result variable
+    let zk_state_change = vec![ZkStateChange::DeleteVariables {
+        variables_to_delete: vec![result_id],
+    }];
+
+    // Check that deposit with successful
+    let mut event_groups = vec![];
+    if !result.successful {
+        fail_safely(
+            &context,
+            &mut event_groups,
+            &format!(
+                "Insufficient deposit balance! Could not withdraw {} tokens",
+                result.amount
+            ),
+        );
+    } else {
+        let recipient = result_variable.owner;
+
+        let mut event_group = EventGroup::builder();
+        event_group
+            .call(state.token, token_contract_transfer_from())
+            .argument(context.contract_address)
+            .argument(recipient)
+            .argument(result.amount as u128)
+            .done();
+
+        event_groups.push(event_group.build());
+    }
+
+    (state, event_groups, zk_state_change)
+}
+
+fn read_result(result_variable: &ZkClosed<VariableKind>) -> zk_compute::ComputationResultPub {
+    let result_bytes: &Vec<u8> = result_variable.data.as_ref().unwrap();
+    zk_compute::ComputationResultPub::secret_read_from(&mut result_bytes.as_slice())
 }
 
 /// Indicates failure to the user by spawning a new failing event.
@@ -387,4 +620,19 @@ pub fn trigger_continue_queue_if_needed(
             .done();
         event_groups.push(event_group_builder.build());
     }
+}
+
+#[inline]
+fn token_contract_transfer_from() -> Shortname {
+    Shortname::from_u32(0x03)
+}
+
+#[action(shortname = 0x4C, zk = true)]
+pub fn fail_in_separate_action(
+    _context: ContractContext,
+    _state: ContractState,
+    _zk_state: ZkState<VariableKind>,
+    error_message: String,
+) -> (ContractState, Vec<EventGroup>, Vec<ZkStateChange>) {
+    panic!("{error_message}");
 }

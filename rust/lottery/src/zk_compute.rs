@@ -8,13 +8,13 @@ const VARIABLE_KIND_DISCRIMINANT_LOTTERY_ACCOUNT: u8 = 4;
 
 // Can represent a user account OR a lottery account
 type AccountKey = Sbu128;
-type SecretAccountBalance = Sbu128;
+type TokenAmount = Sbu128;
 
 // Account balance for a user or a lottery
 #[derive(Debug, Clone, CreateTypeSpec, SecretBinary)]
 pub struct AccountBalance {
     pub account_key: AccountKey,
-    pub balance: SecretAccountBalance,
+    pub balance: TokenAmount,
 }
 
 // Metadata for account balance
@@ -41,6 +41,21 @@ struct RecipientBalance {
     exists: Sbu1,
     /// The value of the balance.
     recipient_balance: AccountBalance,
+}
+
+#[derive(Debug, Clone, Copy, CreateTypeSpec, SecretBinary)]
+pub struct ComputationResult {
+    /// Number of tokens that the computation effected or tried to effect.
+    amount: TokenAmount,
+    /// Whether the computation was successful.
+    successful: Sbu1,
+}
+
+#[derive(Debug, Clone, Copy, CreateTypeSpec, SecretBinary)]
+pub struct ComputationResultPub {
+    pub amount: u128,
+    /// Whether the computation was successful.
+    pub successful: bool,
 }
 
 
@@ -94,8 +109,8 @@ fn find_recipient_balance(
 #[allow(clippy::collapsible_else_if)]
 fn update_all_balances(
     account_key: AccountKey,
-    sender_balance_updated: SecretAccountBalance,
-    recipient_balance_updated: SecretAccountBalance,
+    sender_balance_updated: TokenAmount,
+    recipient_balance_updated: TokenAmount,
     sender_balance_id: SecretVarId,
     all_conditions_correct: Sbu1,
 ) {
@@ -142,6 +157,47 @@ pub fn create_account(sender_balance_id: SecretVarId) -> AccountBalance {
         balance: Sbu128::from(0),
     }
 }
+#[zk_compute(shortname = 0x71)]
+pub fn mint_credits(
+    sender_balance_id: SecretVarId,
+    amount: u128
+) -> AccountBalance {
+    let mut sender_balance: AccountBalance = load_sbi::<AccountBalance>(sender_balance_id);
+
+    // Update the sender balance.
+    sender_balance.balance = sender_balance.balance + Sbu128::from(amount);
+
+    // Return the updated sender balance.
+    (sender_balance)
+}
+
+#[zk_compute(shortname = 0x72)]
+pub fn burn_credits(
+    balance_id: SecretVarId,
+    amount: u128
+) -> (AccountBalance, ComputationResult) {
+    let mut balance: AccountBalance = load_sbi::<AccountBalance>(balance_id);
+    let mut successful = Sbu1::from(false);
+
+    // If insufficient balance, do not burn credits.
+    if !is_negative(balance.balance - Sbu128::from(amount)) {
+        // Update the sender balance.
+        balance.balance = balance.balance - Sbu128::from(amount);
+    
+        // Mark the operation as successful.
+        successful = Sbu1::from(true);
+    }
+
+
+    // Return the updated sender balance.
+    (
+        balance, 
+        ComputationResult {
+            amount: Sbu128::from(amount),
+            successful
+        }
+    )
+}
 
 /// Produces true if the given [`SecretVarId`] points to a [`DepositBalanceSecrets`].
 fn is_account_balance(variable_id: SecretVarId) -> bool {
@@ -155,7 +211,6 @@ fn is_account_balance(variable_id: SecretVarId) -> bool {
     }
 
     false
-
 }
 
 /// Produces true if the given [`Sbu128`] would be negative if casted to [`Sbi128`].

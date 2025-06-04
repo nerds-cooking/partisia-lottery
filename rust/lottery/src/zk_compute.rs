@@ -204,9 +204,9 @@ fn is_account_balance(variable_id: SecretVarId) -> bool {
 
     let kind = load_metadata::<u8>(variable_id);
 
-    if kind == VARIABLE_KIND_DISCRIMINANT_ENTRY {
+    if kind == VARIABLE_KIND_DISCRIMINANT_USER_ACCOUNT {
         return true;
-    } else if kind == VARIABLE_KIND_DISCRIMINANT_WINNER {
+    } else if kind == VARIABLE_KIND_DISCRIMINANT_LOTTERY_ACCOUNT {
         return true;
     }
 

@@ -1,6 +1,5 @@
 import java.math.BigInteger;
 import java.nio.file.Path;
-import java.util.Arrays;
 
 import org.assertj.core.api.Assertions;
 
@@ -18,6 +17,7 @@ import com.partisiablockchain.language.junit.JunitContractTest;
 import com.partisiablockchain.language.junit.exceptions.ActionFailureException;
 import com.partisiablockchain.language.testenvironment.TxExecution;
 import com.partisiablockchain.language.testenvironment.zk.node.task.PendingInputId;
+import com.secata.stream.BitInput;
 import com.secata.stream.CompactBitArray;
 
 final class LotteryTest extends JunitContractTest {
@@ -125,31 +125,32 @@ final class LotteryTest extends JunitContractTest {
 
                 Assertions.assertThatThrownBy(() -> {
                         redeemCredits(creator, insufficientCredits);
-                }).isInstanceOf(ActionFailureException.class)
-                  .hasMessageContaining("Insufficient credits to redeem");
+                }).isInstanceOf(RuntimeException.class)
+                  .hasMessageContaining("Insufficient deposit balance! Could not withdraw");
         }
 
-        // @ContractTest(previous = "testPurchaseCreditsWithoutAccount")
-        // void testRedeemCreditsWithoutAccount(){
-        //         // Attempt to redeem credits without creating a secret account
-        //         BigInteger credits = toBigInteger(500);
+        @ContractTest(previous = "testPurchaseCreditsWithoutAccount")
+        void testRedeemCreditsWithoutAccount(){
+                // Attempt to redeem credits without creating a secret account
+                BigInteger credits = toBigInteger(500);
 
-        //         Assertions.assertThatThrownBy(() -> {
-        //                 redeemCredits(player2, credits);
-        //         }).isInstanceOf(ActionFailureException.class)
-        //           .hasMessageContaining("Cannot redeem credits for an account that does not exist");
-        // }
+                Assertions.assertThatThrownBy(() -> {
+                        redeemCredits(player2, credits);
+                }).isInstanceOf(ActionFailureException.class)
+                  .hasMessageContaining("Cannot redeem credits for an account that does not exist");
+        }
 
-        // @ContractTest(previous = "testPurchaseCredits")
-        // void testRedeemCredits() {
-                // Redeem credits for the creator
-        //         BigInteger credits = toBigInteger(500);
+        @ContractTest(previous = "testPurchaseCredits")
+        void testRedeemCredits() {
+                BigInteger credits = toBigInteger(500);
+                // Assertions.assertThat(getLotteryContractState().accounts().get(player1)).isNull();
+                assertSecretBalance(player1, toBigInteger(1000), BigInteger.valueOf(716473264415L)); // After redeeming, balance should be zero
 
-        //         redeemCredits(player1, credits);
+                redeemCredits(player1, credits);
 
-        //         // Assert the secret balance of the creator (1000 balance - 500 redeemed)
-        //         assertSecretBalance(creator, toBigInteger(500)); // After redeeming, balance should be zero
-        // }
+                // Assert the secret balance of the creator (1000 balance - 500 redeemed)
+                assertSecretBalance(player1, toBigInteger(500), BigInteger.valueOf(716473264415L)); // After redeeming, balance should be zero
+        }
 
 
 
@@ -431,48 +432,42 @@ final class LotteryTest extends JunitContractTest {
         record AccountBalance(BigInteger accountKey, BigInteger balance) {
         }
 
-        private void assertSecretBalance(BlockchainAddress assetOwner, BigInteger expectedBalance) {
+        private void assertSecretBalance(BlockchainAddress assetOwner, BigInteger expectedBalance, BigInteger... accountKey) {
                 Lottery.ContractState cstate = getLotteryContractState();
 
+                Assertions.assertThat(cstate.accounts().size()).isGreaterThanOrEqualTo(0);
+
                 Lottery.SecretVarId varId = cstate.accounts().get(assetOwner);
+
+                Assertions.assertThat(varId).isNotNull();
 
                 CompactBitArray varVal = zkNodes.getSecretVariable(lottery, varId.rawId());
 
                 // Deserialize from CompactBitArray to AccountBalance
                 AccountBalance accountBalance = deserializeAccountBalance(varVal);
 
+                if (accountKey.length > 0) {
+                        // If accountKey is provided, assert it matches
+                        BigInteger expectedAccountKey = accountKey[0];
+                        Assertions.assertThat(accountBalance.accountKey()).isEqualTo(expectedAccountKey);
+                } else {
+                        // If no accountKey is provided, just check the balance
+                        Assertions.assertThat(accountBalance.accountKey()).isNotNull();
+                }
+
                 // Assert the balance matches the expected value
                 Assertions.assertThat(accountBalance.balance()).isEqualTo(expectedBalance);
         }
 
         private AccountBalance deserializeAccountBalance(CompactBitArray varVal) {
-                byte[] data = varVal.data();
-                
-                // In Rust, AccountBalance struct has:
-                // 1. account_key: AccountKey (Sbu128 - 16 bytes)
-                // 2. balance: SecretAccountBalance (Sbu128 - 16 bytes)
-                
-                // The actual data might be stored in little-endian format
-                // Extract account key bytes (first 16 bytes)
-                byte[] accountKeyBytes = Arrays.copyOfRange(data, 0, 16);
-                // Convert accountKeyBytes to BigInteger (correct endianness)
-                BigInteger accountKey = new BigInteger(1, reverseBytes(accountKeyBytes));
-                
-                // Extract balance bytes (next 16 bytes)
-                byte[] balanceBytes = Arrays.copyOfRange(data, 16, 32);
-                // Convert balanceBytes to BigInteger (correct endianness)
-                BigInteger balance = new BigInteger(1, reverseBytes(balanceBytes));
+
+                Assertions.assertThat(varVal.data().length).isEqualTo(32);
+
+                BitInput stream = BitInput.create(varVal.data());
+                BigInteger accountKey = stream.readUnsignedBigInteger(128);
+                BigInteger balance = stream.readUnsignedBigInteger(128);
                 
                 return new AccountBalance(accountKey, balance);
-        }
-        
-        // Helper to reverse byte array (for converting little-endian to big-endian)
-        private byte[] reverseBytes(byte[] bytes) {
-                byte[] reversed = new byte[bytes.length];
-                for (int i = 0; i < bytes.length; i++) {
-                        reversed[i] = bytes[bytes.length - i - 1];
-                }
-                return reversed;
         }
 
         // Utility methods

@@ -164,8 +164,7 @@ impl ContractState {
                     previous_variable_ids.push(previous_variable_id)
                 }
 
-                self.accounts
-                    .insert(owner, variable.variable_id);
+                self.add_account(owner, variable.variable_id);
             }
 
             if _owner.is_some() {
@@ -275,6 +274,8 @@ impl ContractState {
                     );
                 }
 
+                // assert!(false, "debug: {:?}", self.get_account_var_id(&account).unwrap());
+
                 zk_state_change.push(zk_compute::mint_credits_start(
                     self.get_account_var_id(&account).unwrap(),
                     credits,
@@ -283,7 +284,6 @@ impl ContractState {
                 ));
             }
             WorkListItem::PendingRedeemCredits { account, credits } => {
-
                 if !self.has_account(&account) {
                     fail_safely(
                         context,
@@ -298,13 +298,15 @@ impl ContractState {
                     );
                 }
 
+                // assert!(false, "debug: {:?}", credits);
+
                 zk_state_change.push(zk_compute::burn_credits_start(
                     self.get_account_var_id(&account).unwrap(),
                     credits,
                     Some(SHORTNAME_WITHDRAW_COMPLETE),
                     [
-                        &VariableKind::WorkResult { owner: account },
-                        &VariableKind::UserAccount { owner: account }
+                        &VariableKind::UserAccount { owner: account },
+                        &VariableKind::WorkResult { owner: account }
                     ]
                 ));
             }
@@ -439,7 +441,7 @@ pub fn simple_work_item_complete(
 }
 
 
-#[action(shortname = 0x10, zk = true)]
+#[action(shortname = 0x20, zk = true)]
 pub fn purchase_credits(
     context: ContractContext,
     mut state: ContractState,
@@ -457,28 +459,52 @@ pub fn purchase_credits(
         .argument(_credits)
         .done();
 
+    event_group
+        .with_callback(SHORTNAME_DEPOSIT_CALLBACK)
+        .argument(context.sender)
+        .argument(_credits).done();
 
-    let mut event_groups = vec![
+
+    let event_groups = vec![
         event_group.build()
     ];
-    
 
+    (state, event_groups, zk_state_change)
+}
+
+/// Handles callback from [`deposit`].
+///
+/// If the transfer event is successful,
+/// the caller of [`deposit`] is registered as a user of the contract with (additional) `amount` added to their balance.
+#[callback(shortname = 0x1A, zk = true)]
+pub fn deposit_callback(
+    context: ContractContext,
+    callback_context: CallbackContext,
+    mut state: ContractState,
+    zk_state: ZkState<VariableKind>,
+    account: Address,
+    amount: u128,
+) -> (ContractState, Vec<EventGroup>, Vec<ZkStateChange>) {
+    assert!(callback_context.success, "Transfer did not succeed");
+
+    let mut zk_state_change = vec![];
+    let mut event_groups = vec![];
+    
     state.schedule_new_work_item(
         &context,
         &zk_state,
         &mut zk_state_change,
         &mut event_groups,
         WorkListItem::PendingPurchaseCredits {
-            account: context.sender,
-            credits: _credits
+            account,
+            credits: amount
         }
     );
 
     (state, event_groups, zk_state_change)
 }
 
-
-#[action(shortname = 0x11, zk = true)]
+#[action(shortname = 0x21, zk = true)]
 pub fn redeem_credits(
     context: ContractContext,
     mut state: ContractState,
@@ -561,10 +587,11 @@ pub fn withdraw_result_opened(
     } else {
         let recipient = result_variable.owner;
 
+
+        // Transfer the tokens from the contract to the recipient
         let mut event_group = EventGroup::builder();
         event_group
-            .call(state.token, token_contract_transfer_from())
-            .argument(context.contract_address)
+            .call(state.token, token_contract_transfer())
             .argument(recipient)
             .argument(result.amount as u128)
             .done();
@@ -622,9 +649,43 @@ pub fn trigger_continue_queue_if_needed(
     }
 }
 
+#[action(shortname = 0x10, zk = true)]
+pub fn continue_queue(
+    context: ContractContext,
+    mut state: ContractState,
+    zk_state: ZkState<VariableKind>,
+) -> (ContractState, Vec<EventGroup>, Vec<ZkStateChange>) {
+    assert!(
+        context.sender == context.contract_address,
+        "This is an internal invocation. Must not be invoked by outside users."
+    );
+
+    // Start next in queue
+    let mut zk_state_change = vec![];
+    let mut event_groups = vec![];
+    state.attempt_to_start_next_in_queue(
+        &context,
+        &zk_state,
+        &mut zk_state_change,
+        &mut event_groups,
+    );
+
+    (state, event_groups, zk_state_change)
+}
+
+#[inline]
+fn token_contract_transfer() -> Shortname {
+    Shortname::from_u32(0x01)
+}
+
 #[inline]
 fn token_contract_transfer_from() -> Shortname {
     Shortname::from_u32(0x03)
+}
+
+#[inline]
+fn token_contract_approve() -> Shortname {
+    Shortname::from_u32(0x05)
 }
 
 #[action(shortname = 0x4C, zk = true)]

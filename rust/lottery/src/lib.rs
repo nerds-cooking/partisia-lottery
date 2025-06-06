@@ -14,6 +14,7 @@ use pbc_contract_common::events::EventGroup;
 use pbc_contract_common::zk::CalculationStatus;
 use pbc_contract_common::zk::ZkClosed;
 use pbc_contract_common::zk::{SecretVarId, ZkInputDef, ZkState, ZkStateChange};
+use pbc_zk::api;
 use pbc_zk::SecretBinary;
 use read_write_state_derive::ReadWriteState;
 use mpc_20::MPC20Contract;
@@ -135,6 +136,9 @@ pub enum WorkListItem {
 pub struct ContractState {
     token: Address,
 
+    /// API Address that is able to read secret variables (workaround for lack of support for reading secret variables with current Parti Wallet)
+    api: Address,
+
     // Set of user accounts and their secret var IDs for tracking balances
     user_accounts: AvlTreeMap<Address, SecretVarId>,
 
@@ -150,9 +154,11 @@ pub struct ContractState {
 
 impl ContractState {
     /// Create a new contract state (used in `initialize`)
-    pub fn new(token: Address) -> Self {
+    pub fn new(token: Address, api: Address) -> Self {
         ContractState {
             token,
+
+            api,
 
             user_accounts: AvlTreeMap::new(),
             lottery_accounts: AvlTreeMap::new(),
@@ -178,6 +184,10 @@ impl ContractState {
         output_variables: Vec<SecretVarId>,
         zk_state_change: &mut Vec<ZkStateChange>,
     ) {
+        ///! This function is designed to transfer ownership to the correct owner
+        ///! but because Parti Wallet doesn't allow retreiving private keys and triggers 4 modals when trying to fetch each balance
+        ///! We use an API address to read the secret variables as a workaround until this is supported
+        ///!
         let mut previous_variable_ids = vec![];
 
         for variable_id in output_variables {
@@ -211,7 +221,8 @@ impl ContractState {
                 // If the variable has an owner, transfer it to the owner
                 zk_state_change.push(ZkStateChange::TransferVariable {
                     variable: variable.variable_id,
-                    new_owner: _owner.unwrap(),
+                    // new_owner: _owner.unwrap(),
+                    new_owner: self.api // ! See comment at start of function explaining this
                 });
             }
         }
@@ -459,9 +470,11 @@ pub fn initialize(
     _context: ContractContext,
     _zk_state: ZkState<VariableKind>,
     token: Address,
+    api: Address,
 ) -> ContractState {
     ContractState::new(
-        token
+        token,
+        api
     )
 }
 

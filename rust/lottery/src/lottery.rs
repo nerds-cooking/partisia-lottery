@@ -1,0 +1,48 @@
+use create_type_spec_derive::CreateTypeSpec;
+use read_write_state_derive::ReadWriteState;
+
+use pbc_contract_common::address::Address;
+use pbc_contract_common::zk::SecretVarId;
+use pbc_contract_common::avl_tree_map::AvlTreeMap;
+
+pub type LotteryId = u128;
+
+
+/// Status of the lottery at any point in time
+#[derive(CreateTypeSpec, ReadWriteState, PartialEq, Clone, Debug)]
+pub enum LotteryStatus {
+    /// Lottery is pending payment by the creator
+    #[discriminant(1)]
+    Pending {},
+
+    /// Lottery is open and accepting anonymous entries
+    #[discriminant(2)]
+    Open {},
+
+    /// Entry period has closed, winner selection in progress
+    #[discriminant(3)]
+    Closed {},
+
+    /// Winner has been revealed and lottery is finalized
+    #[discriminant(4)]
+    Complete {},
+}
+
+#[derive(ReadWriteState, Debug, CreateTypeSpec, Clone)]
+pub struct LotteryState {
+    pub lottery_id: LotteryId,
+    pub creator: Address,
+    pub status: LotteryStatus,
+    pub deadline: i64,
+    pub winner: Option<Address>,
+    pub entry_cost: u128,
+    pub prize_pool: u128,
+    
+    // Entropy data for winner selection
+    pub random_seed: Option<SecretVarId>,
+
+    // pub entries: Vec<Entry>, // ! contains address
+    // pub entries_svars: Vec<SecretVarId>,
+    // pub winner_svar_id: Option<SecretVarId>,
+}
+

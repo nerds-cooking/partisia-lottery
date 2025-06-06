@@ -1,8 +1,6 @@
 use create_type_spec_derive::CreateTypeSpec;
 use pbc_zk::*;
 
-const VARIABLE_KIND_DISCRIMINANT_ENTRY: u8 = 1;
-const VARIABLE_KIND_DISCRIMINANT_WINNER: u8 = 2;
 const VARIABLE_KIND_DISCRIMINANT_USER_ACCOUNT: u8 = 3;
 const VARIABLE_KIND_DISCRIMINANT_LOTTERY_ACCOUNT: u8 = 4;
 
@@ -30,6 +28,14 @@ pub struct AccountBalanceMetadata {
 pub struct AccountCreationSecret {
     /// Secret-shared key used to transfer to the user that is being created.
     account_key: AccountKey,
+}
+
+/// Secret-shared information for creating new lotteries
+#[derive(Debug, Clone, Copy, CreateTypeSpec, SecretBinary)]
+pub struct LotteryCreationSecret {
+    lottery_account_key: AccountKey,
+    creator_account_key: AccountKey,
+    random_seed: Sbu128
 }
 
 /// Balance of the recipient, and whether the balance even exist.
@@ -157,6 +163,7 @@ pub fn create_account(sender_balance_id: SecretVarId) -> AccountBalance {
         balance: Sbu128::from(0),
     }
 }
+
 #[zk_compute(shortname = 0x71)]
 pub fn mint_credits(
     sender_balance_id: SecretVarId,
@@ -197,6 +204,51 @@ pub fn burn_credits(
             successful
         }
     )
+}
+
+// Returns:
+// 0: AccountBalance -> updated creator account balance
+// 1: AccountBalance -> new lottery balance
+// 2: Whether the creation was successful or not
+#[zk_compute(shortname = 0x73)]
+pub fn create_lottery(
+    lottery_creation_id: SecretVarId,
+    creator_balance_id: SecretVarId,
+    prize_pool: u128
+) -> (AccountBalance, AccountBalance, ComputationResult) {
+    let mut creator_balance: AccountBalance = load_sbi::<AccountBalance>(creator_balance_id);
+    let mut lottery_creation_secret: LotteryCreationSecret = load_sbi::<LotteryCreationSecret>(lottery_creation_id);
+
+    let secret_amount = Sbu128::from(prize_pool);
+    let mut successful = Sbu1::from(false);
+
+    let recipient_balance = find_recipient_balance(lottery_creation_secret.lottery_account_key, lottery_creation_id);
+
+    // If the account exists, we return an account key of `0` to indicate an issue
+    let account_key = if recipient_balance.exists {
+        Sbu128::from(0)
+    } else {
+        lottery_creation_secret.lottery_account_key
+    };
+
+    if !is_negative(account_key - Sbu128::from(1)) && !is_negative(creator_balance.balance - secret_amount) {
+            // If the account key didn't conflict, we'll have a positive number here for key and will be able to mark this as successful
+            successful = Sbu1::from(true);
+
+            // Decrease the credits from the sender balance
+            creator_balance.balance = creator_balance.balance - secret_amount;
+    }
+
+    let mut lottery_balance = 
+        AccountBalance {
+            account_key,
+            balance: secret_amount,
+        };
+
+    (creator_balance, lottery_balance, ComputationResult {
+        amount: secret_amount,
+        successful
+    })
 }
 
 /// Produces true if the given [`SecretVarId`] points to a [`DepositBalanceSecrets`].

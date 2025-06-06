@@ -5,33 +5,23 @@ extern crate pbc_contract_common;
 use std::collections::VecDeque;
 
 use create_type_spec_derive::CreateTypeSpec;
+use lottery::{LotteryId, LotteryState, LotteryStatus};
 use pbc_contract_common::address::Address;
-use pbc_contract_common::address::AddressType;
 use pbc_contract_common::address::Shortname;
-use pbc_contract_common::address::ShortnameCallback;
-use pbc_contract_common::address::ShortnameZkVariableInputted;
-use pbc_contract_common::avl_tree_map::{AvlTreeMap, AvlTreeSet};
-use pbc_contract_common::context::{self, CallbackContext, ContractContext};
+use pbc_contract_common::avl_tree_map::AvlTreeMap;
+use pbc_contract_common::context::{CallbackContext, ContractContext};
 use pbc_contract_common::events::EventGroup;
 use pbc_contract_common::zk::CalculationStatus;
 use pbc_contract_common::zk::ZkClosed;
 use pbc_contract_common::zk::{SecretVarId, ZkInputDef, ZkState, ZkStateChange};
-use pbc_zk::load_metadata;
-use pbc_zk::Sbi8;
 use pbc_zk::SecretBinary;
-use read_write_rpc_derive::ReadWriteRPC;
 use read_write_state_derive::ReadWriteState;
+use mpc_20::MPC20Contract;
 
 mod zk_compute;
+mod mpc_20;
+mod lottery;
 
-// ZK types for ABI generation
-// Account balance for a user or a lottery
-#[derive(Debug, Clone, CreateTypeSpec, SecretBinary)]
-pub struct AccountBalance {
-    pub account_key: u128,
-    pub balance: u128,
-}
-// EOF: ZK types for ABI generation
 
 /// Kind of secret or revealed data stored
 #[derive(ReadWriteState, Debug, Clone, CreateTypeSpec)]
@@ -42,7 +32,7 @@ pub enum VariableKind {
 
     /// Revealed winner after selection
     #[discriminant(2)]
-    Winner { lottery_id: u8 },
+    Winner { lottery_id: LotteryId },
 
     /// Account for a user
     #[discriminant(3)]
@@ -52,7 +42,10 @@ pub enum VariableKind {
 
     /// Account for a lottery
     #[discriminant(4)]
-    LotteryAccount { lottery_id: u8 },
+    LotteryAccount { 
+        owner: Address,
+        lottery_id: LotteryId
+     },
 
     /// Secret input for account creation
     #[discriminant(5)]
@@ -70,9 +63,26 @@ pub enum VariableKind {
         /// owned by this address.
         owner: Address,
     },
+
+    /// Result of a withdraw operation
     #[discriminant(7)]
-    WorkResult {
+    WithdrawResult {
         owner: Address
+    },
+
+    /// Metadata for public inputs used on secret input for creating a lottery
+    #[discriminant(8)]
+    LotteryCreationData {
+        creator: Address,
+        // Lottery ID is also used as the account key for the lottery
+        lottery_id: LotteryId,
+    },
+    /// Result of a lottery creation operation
+    #[discriminant(9)]
+    LotteryCreationResult {
+        /// Owner of the lottery
+        owner: Address,
+        lottery_id: LotteryId,
     }
 }
 
@@ -104,6 +114,18 @@ pub enum WorkListItem {
         // Amount of credits to redeem
         credits: u128,
     },
+    /// Created by the [`create_lottery`] invocation.
+    #[discriminant(4)]
+    PendingLotteryCreation {
+        /// Account of the lottery creator
+        account: Address,
+        /// Lottery ID as provided in public input
+        lottery_id: LotteryId,
+        /// Prize pool amount
+        prize_pool: u128,
+        /// Identifier of secret-shared [`zk_compute::LotteryCreationSecret`]
+        lottery_creation_id: SecretVarId
+    }
 }
 
 
@@ -112,10 +134,13 @@ pub enum WorkListItem {
 #[state]
 pub struct ContractState {
     token: Address,
-    token_decimals: u32,
 
-    // Set of accounts (users or lotteries) and their secret var IDs for tracking balances
-    accounts: AvlTreeMap<Address, SecretVarId>,
+    // Set of user accounts and their secret var IDs for tracking balances
+    user_accounts: AvlTreeMap<Address, SecretVarId>,
+
+    // Set of lottery accounts and their secret var IDs for tracking balances
+    lottery_accounts: AvlTreeMap<LotteryId, SecretVarId>,
+    lotteries: AvlTreeMap<LotteryId, LotteryState>,
 
     // Queue of work items to be processed
     pub work_queue: VecDeque<WorkListItem>,
@@ -125,11 +150,14 @@ pub struct ContractState {
 
 impl ContractState {
     /// Create a new contract state (used in `initialize`)
-    pub fn new(token: Address, token_decimals: u32) -> Self {
+    pub fn new(token: Address) -> Self {
         ContractState {
             token,
-            token_decimals,
-            accounts: AvlTreeMap::new(),
+
+            user_accounts: AvlTreeMap::new(),
+            lottery_accounts: AvlTreeMap::new(),
+
+            lotteries: AvlTreeMap::new(),
 
             work_queue: VecDeque::new(),
             redundant_variables: vec![]
@@ -157,14 +185,26 @@ impl ContractState {
 
             let mut _owner: Option<Address> = None;
 
-            // Update state balances
-            if let VariableKind::UserAccount { owner } = variable.metadata {
-                _owner = Some(owner.clone());
-                if let Some(previous_variable_id) = self.accounts.get(&owner) {
-                    previous_variable_ids.push(previous_variable_id)
+            match variable.metadata {
+                VariableKind::UserAccount { owner }  => {
+                    _owner = Some(owner.clone());
+                    if let Some(previous_variable_id) = self.user_accounts.get(&owner) {
+                        previous_variable_ids.push(previous_variable_id)
+                    }
+    
+                    self.add_user_account(owner, variable.variable_id);
                 }
 
-                self.add_account(owner, variable.variable_id);
+                VariableKind::LotteryAccount { owner, lottery_id } => {
+                    _owner = Some(owner.clone());
+
+                    if let Some(previous_variable_id) = self.lottery_accounts.get(&lottery_id) {
+                        previous_variable_ids.push(previous_variable_id)
+                    }
+    
+                    self.add_lottery_account(lottery_id, variable.variable_id);
+                }
+                _ => {}
             }
 
             if _owner.is_some() {
@@ -237,7 +277,7 @@ impl ContractState {
                 account,
                 account_creation_id,
             } => {
-                if self.has_account(&account) {
+                if self.has_user_account(&account) {
                     fail_safely(
                         context,
                         event_groups,
@@ -260,7 +300,7 @@ impl ContractState {
                 ))
             }
             WorkListItem::PendingPurchaseCredits { account, credits } => {
-                if !self.has_account(&account) {
+                if !self.has_user_account(&account) {
                     fail_safely(
                         context,
                         event_groups,
@@ -274,17 +314,15 @@ impl ContractState {
                     );
                 }
 
-                // assert!(false, "debug: {:?}", self.get_account_var_id(&account).unwrap());
-
                 zk_state_change.push(zk_compute::mint_credits_start(
-                    self.get_account_var_id(&account).unwrap(),
+                    self.get_user_account_var_id(&account).unwrap(),
                     credits,
                     Some(SHORTNAME_SIMPLE_WORK_ITEM_COMPLETE),
                     &VariableKind::UserAccount { owner: account }
                 ));
             }
             WorkListItem::PendingRedeemCredits { account, credits } => {
-                if !self.has_account(&account) {
+                if !self.has_user_account(&account) {
                     fail_safely(
                         context,
                         event_groups,
@@ -301,14 +339,51 @@ impl ContractState {
                 // assert!(false, "debug: {:?}", credits);
 
                 zk_state_change.push(zk_compute::burn_credits_start(
-                    self.get_account_var_id(&account).unwrap(),
+                    self.get_user_account_var_id(&account).unwrap(),
                     credits,
                     Some(SHORTNAME_WITHDRAW_COMPLETE),
                     [
                         &VariableKind::UserAccount { owner: account },
-                        &VariableKind::WorkResult { owner: account }
+                        &VariableKind::WithdrawResult { owner: account }
                     ]
                 ));
+            }
+            WorkListItem::PendingLotteryCreation {
+                account,
+                lottery_id,
+                prize_pool,
+                lottery_creation_id,
+            } => {
+                if !self.has_user_account(&account) {
+                    fail_safely(
+                        context,
+                        event_groups,
+                        "Creator must have an account to create a lottery",
+                    );
+                    return self.attempt_to_start_next_in_queue(
+                        context,
+                        zk_state,
+                        zk_state_change,
+                        event_groups,
+                    );
+                }
+
+
+                self.redundant_variables.push(lottery_creation_id);
+
+
+                zk_state_change.push(zk_compute::create_lottery_start(
+                    lottery_creation_id,
+                    self.get_user_account_var_id(&account).unwrap(),
+                    prize_pool,
+                    Some(SHORTNAME_CREATE_LOTTERY_COMPLETE),
+                    [
+                        &VariableKind::UserAccount { owner: account },
+                        &VariableKind::LotteryAccount { owner: account, lottery_id },
+                        &VariableKind::LotteryCreationResult { owner: account, lottery_id }
+                    ],
+                ))
+
             }
         };
     }
@@ -323,44 +398,70 @@ impl ContractState {
         event_groups: &mut Vec<EventGroup>,
         worklist_item: WorkListItem,
     ) {
-
-        // match worklist_item {
-        //     WorkListItem::PendingRedeemCredits { account, credits } => {
-        //         assert!(false, "A: {:?}, B: {:?}", account, credits);
-        //     }
-        //     _ => {}
-        // }
-
         self.work_queue.push_back(worklist_item);
         self.attempt_to_start_next_in_queue(context, zk_state, zk_state_change, event_groups)
     }
 
-    /// Check if an account exists
-    pub fn has_account(&self, address: &Address) -> bool {
-        self.accounts.contains_key(address)
+    /// Check if a user account exists
+    pub fn has_user_account(&self, address: &Address) -> bool {
+        self.user_accounts.contains_key(address)
     }
 
-    /// Add a new account with its secret var ID
-    pub fn add_account(&mut self, address: Address, secret_var_id: SecretVarId) {
-        self.accounts.insert(address, secret_var_id);
+    /// Add a new user account with its secret var ID
+    pub fn add_user_account(&mut self, address: Address, secret_var_id: SecretVarId) {
+        self.user_accounts.insert(address, secret_var_id);
     }
 
-    /// Get the secret var ID for an account
-    pub fn get_account_var_id(&self, address: &Address) -> Option<SecretVarId> {
-        self.accounts.get(address)
+    /// Get the secret var ID for a user account
+    pub fn get_user_account_var_id(&self, address: &Address) -> Option<SecretVarId> {
+        self.user_accounts.get(address)
+    }
+
+    /// Add a new lottery to the state
+    pub fn add_lottery(&mut self, lottery_state: &LotteryState) {
+        self.lotteries.insert(lottery_state.lottery_id, lottery_state.clone());
+    }
+
+    pub fn get_lottery(&self, lottery_id: &LotteryId) -> Option<LotteryState> {
+        self.lotteries.get(lottery_id)
+    }
+
+    /// Check if a lottery account exists
+    pub fn has_lottery_account(&self, lottery_id: &LotteryId) -> bool {
+        self.lottery_accounts.contains_key(lottery_id)
+    }
+
+    /// Add a new lottery account with its secret var ID
+    pub fn add_lottery_account(&mut self, lottery_id: LotteryId, secret_var_id: SecretVarId) {
+        self.lottery_accounts.insert(lottery_id, secret_var_id);
+    }
+
+    /// Get the secret var ID for a lottery account
+    pub fn get_lottery_account_var_id(&self, lottery_id: &LotteryId) -> Option<SecretVarId> {
+        self.lottery_accounts.get(lottery_id)
+    }
+
+    /// Mark a lottery as open (once payment has been received to the contract)
+    pub fn mark_lottery_as_open(
+        &mut self,
+        lottery_id: LotteryId
+    ) {
+        let mut lottery = self.get_lottery(&lottery_id).unwrap().clone();
+
+        lottery.status = LotteryStatus::Open {};
+
+        self.lotteries.insert(lottery_id, lottery);
     }
 }
 
 #[init(zk = true)]
 pub fn initialize(
-    context: ContractContext,
+    _context: ContractContext,
     _zk_state: ZkState<VariableKind>,
     token: Address,
-    token_decimals: u32,
 ) -> ContractState {
     ContractState::new(
-        token,
-        token_decimals,
+        token
     )
 }
 
@@ -444,20 +545,21 @@ pub fn simple_work_item_complete(
 #[action(shortname = 0x20, zk = true)]
 pub fn purchase_credits(
     context: ContractContext,
-    mut state: ContractState,
-    zk_state: ZkState<VariableKind>,
+    state: ContractState,
+    _zk_state: ZkState<VariableKind>,
     _credits: u128,
 ) -> (ContractState, Vec<EventGroup>, Vec<ZkStateChange>) {
-    let mut zk_state_change = vec![];
+    let zk_state_change = vec![];
 
 
     let mut event_group = EventGroup::builder();
-    event_group
-        .call(state.token, token_contract_transfer_from())
-        .argument(context.sender)
-        .argument(context.contract_address)
-        .argument(_credits)
-        .done();
+    MPC20Contract::at_address(state.token)
+        .transfer_from(
+            &mut event_group,
+            &context.sender,
+            &context.contract_address,
+            _credits
+        );
 
     event_group
         .with_callback(SHORTNAME_DEPOSIT_CALLBACK)
@@ -558,7 +660,7 @@ pub fn withdraw_complete(
 #[zk_on_variables_opened]
 pub fn withdraw_result_opened(
     context: ContractContext,
-    state: ContractState,
+    mut state: ContractState,
     zk_state: ZkState<VariableKind>,
     opened_variables: Vec<SecretVarId>,
 ) -> (ContractState, Vec<EventGroup>, Vec<ZkStateChange>) {
@@ -573,31 +675,66 @@ pub fn withdraw_result_opened(
         variables_to_delete: vec![result_id],
     }];
 
-    // Check that deposit with successful
     let mut event_groups = vec![];
-    if !result.successful {
-        fail_safely(
-            &context,
-            &mut event_groups,
-            &format!(
-                "Insufficient deposit balance! Could not withdraw {} tokens",
-                result.amount
-            ),
-        );
-    } else {
-        let recipient = result_variable.owner;
 
+    match result_variable.metadata {
+        VariableKind::WithdrawResult { owner} => {
+            // Check that deposit was successful
+            if !result.successful {
+                fail_safely(
+                    &context,
+                    &mut event_groups,
+                    &format!(
+                        "Insufficient deposit balance! Could not withdraw {} tokens",
+                        result.amount
+                    ),
+                );
+            } else {
+                let recipient = result_variable.owner;
 
-        // Transfer the tokens from the contract to the recipient
-        let mut event_group = EventGroup::builder();
-        event_group
-            .call(state.token, token_contract_transfer())
-            .argument(recipient)
-            .argument(result.amount as u128)
-            .done();
+                // Transfer the tokens from the contract to the recipient
+                let mut event_group = EventGroup::builder();
+                MPC20Contract::at_address(state.token)
+                .transfer(
+                    &mut event_group,
+                    &recipient,
+                    result.amount
+                );
 
-        event_groups.push(event_group.build());
+                event_groups.push(event_group.build());
+            }
+        }
+        VariableKind::LotteryCreationResult { owner: _, lottery_id } => {
+
+            // assert!(false, "debug: {:?}", result);
+
+            // Check that lottery creation was successful
+            if !result.successful {
+                fail_safely(
+                    &context,
+                    &mut event_groups,
+                    &format!(
+                        "Could not create lottery with ID {}",
+                        lottery_id
+                    ),
+                );
+            } else {
+                // Update status of the lottery
+                state.mark_lottery_as_open(
+                    lottery_id
+                );
+            }
+        }
+        _ => {
+            fail_safely(
+                &context,
+                &mut event_groups,
+                "Withdraw result variable is not of type WithdrawResult",
+            );
+        }
     }
+
+    
 
     (state, event_groups, zk_state_change)
 }
@@ -673,21 +810,6 @@ pub fn continue_queue(
     (state, event_groups, zk_state_change)
 }
 
-#[inline]
-fn token_contract_transfer() -> Shortname {
-    Shortname::from_u32(0x01)
-}
-
-#[inline]
-fn token_contract_transfer_from() -> Shortname {
-    Shortname::from_u32(0x03)
-}
-
-#[inline]
-fn token_contract_approve() -> Shortname {
-    Shortname::from_u32(0x05)
-}
-
 #[action(shortname = 0x4C, zk = true)]
 pub fn fail_in_separate_action(
     _context: ContractContext,
@@ -697,3 +819,126 @@ pub fn fail_in_separate_action(
 ) -> (ContractState, Vec<EventGroup>, Vec<ZkStateChange>) {
     panic!("{error_message}");
 }
+
+// ----- LOTTERY FUNCTIONS -----
+/**
+ * Secret input
+ * 
+ * User must have 
+ */
+#[zk_on_secret_input(shortname = 0x41)]
+pub fn create_lottery(
+    context: ContractContext,
+    mut state: ContractState,
+    _zk_state: ZkState<VariableKind>,
+    lottery_id: LotteryId,
+    deadline: i64,
+    entry_cost: u128,
+    prize_pool: u128,
+) -> (
+    ContractState,
+    Vec<EventGroup>,
+    ZkInputDef<VariableKind, zk_compute::LotteryCreationSecret>,
+) {
+
+    // assert!(false, "ipp: {:?}", prize_pool);
+
+    let lstate = LotteryState {
+        lottery_id,
+        creator: context.sender,
+        status: LotteryStatus::Pending {},
+        deadline,
+        winner: None,
+        entry_cost,
+        prize_pool,
+        random_seed: None // TODO!
+    };
+
+    // Add the lottery to the state
+    state.add_lottery(&lstate);
+
+    let input_def = ZkInputDef::with_metadata(
+        Some(SHORTNAME_CREATE_LOTTERY_INPUTTED),
+        VariableKind::LotteryCreationData {
+            creator: lstate.creator,
+            lottery_id: lstate.lottery_id
+        },
+    );
+
+    (state, vec![], input_def)
+}
+
+
+#[zk_on_variable_inputted(shortname = 0x51)]
+pub fn create_lottery_inputted(
+    context: ContractContext,
+    mut state: ContractState,
+    zk_state: ZkState<VariableKind>,
+    lottery_creation_id: SecretVarId
+    ) -> (ContractState, Vec<EventGroup>, Vec<ZkStateChange>) {
+    let mut zk_state_change = vec![];
+    let mut event_groups = vec![];
+
+    let input_metadata = zk_state.get_variable(lottery_creation_id).unwrap();
+
+    match input_metadata.metadata {
+        VariableKind::LotteryCreationData { creator, lottery_id } => {
+
+            let lstate = state.get_lottery(&lottery_id).unwrap_or_else(|| {
+                panic!("Lottery with ID {} not found in state!", lottery_id);
+            });
+
+            state.schedule_new_work_item(
+                &context,
+                &zk_state,
+                &mut zk_state_change,
+                &mut event_groups,
+                WorkListItem::PendingLotteryCreation {
+                    account: creator,
+                    lottery_id,
+                    prize_pool: lstate.prize_pool,
+                    lottery_creation_id
+                },
+            );
+        }
+        _ => panic!("Unexpected metadata type in create lottery!"),
+    }
+
+    
+
+    (state, event_groups, zk_state_change)
+}
+
+#[zk_on_compute_complete(shortname = 0x54)]
+pub fn create_lottery_complete(
+    context: ContractContext,
+    mut state: ContractState,
+    zk_state: ZkState<VariableKind>,
+    output_variables: Vec<SecretVarId>,
+) -> (ContractState, Vec<EventGroup>, Vec<ZkStateChange>) {
+    let result_id: SecretVarId = *output_variables.get(2).unwrap();
+
+    // Start next in queue
+    let mut zk_state_change = vec![];
+    let mut event_groups = vec![];
+
+    // Move all variables to their expected owners
+    state.transfer_variables_to_owner(&zk_state, output_variables, &mut zk_state_change);
+    state.clean_up_redundant_secret_variables(&mut zk_state_change);
+    trigger_continue_queue_if_needed(context, &state, &mut event_groups);
+
+    zk_state_change.push(ZkStateChange::OpenVariables {
+        variables: vec![result_id],
+    });
+
+    (state, event_groups, zk_state_change)
+}
+
+// ZK types for ABI generation
+// Account balance for a user or a lottery
+#[derive(Debug, Clone, CreateTypeSpec, SecretBinary)]
+pub struct AccountBalance {
+    pub account_key: u128,
+    pub balance: u128,
+}
+// EOF: ZK types for ABI generation

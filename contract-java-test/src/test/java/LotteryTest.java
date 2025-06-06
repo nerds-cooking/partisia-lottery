@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.partisiablockchain.BlockchainAddress;
 import com.partisiablockchain.language.abicodegen.Lottery;
 import com.partisiablockchain.language.abicodegen.Lottery.AccountCreationSecret;
+import com.partisiablockchain.language.abicodegen.Lottery.LotteryCreationSecret;
 // import com.partisiablockchain.language.abicodegen.Lottery.LotteryState;
 import com.partisiablockchain.language.abicodegen.Testtoken;
 import com.partisiablockchain.language.abicodegen.Testtoken.TokenState;
@@ -32,6 +33,7 @@ final class LotteryTest extends JunitContractTest {
 
         // Constants
         private static final int DECIMALS = 18;
+        // private static final int DECIMALS = 0; // For simplicity, using 0 decimals in this test
         private static final BigInteger INITIAL_TOKEN_SUPPLY = toBigInteger(100000);
         private static final BigInteger PLAYER_INITIAL_BALANCE = toBigInteger(1000);
         private static final BigInteger LOTTERY_ENTRY_COST = toBigInteger(100);
@@ -152,6 +154,87 @@ final class LotteryTest extends JunitContractTest {
                 assertSecretBalance(player1, toBigInteger(500), BigInteger.valueOf(716473264415L)); // After redeeming, balance should be zero
         }
 
+        @ContractTest(previous = "testPurchaseCredits")
+        void testCreateLottery() {
+                assertSecretBalance(
+                        player1,
+                        toBigInteger(1000)
+                );
+
+                BigInteger lotteryId = BigInteger.valueOf(716473264416L); // Lottery account key
+                BigInteger prizePool = toBigInteger(1); // Prize pool
+
+                createLottery(
+                        player1,
+                        lotteryId, // Lottery account key
+                        BigInteger.valueOf(716473264415L), // Creator account key
+                        BigInteger.valueOf(123456789), // Random seed
+                        System.currentTimeMillis() + LOTTERY_DURATION_MS, // Deadline
+                        LOTTERY_ENTRY_COST, // Entry cost
+                        prizePool // Prize pool
+                );
+
+                assertSecretBalance(player1, toBigInteger(1000).subtract(prizePool));
+                assertLotterySecretBalance(
+                        lotteryId, // Lottery account key
+                        prizePool, // Balance after creating the lottery
+                        lotteryId // Lottery account key
+                );
+        }
+
+        @ContractTest(previous = "testCreateLottery")
+        void testCreateLotteryWithConflictingKey() {
+                assertSecretBalance(
+                        player1,
+                        toBigInteger(999)
+                );
+
+                BigInteger lotteryId = BigInteger.valueOf(716473264416L); // Lottery account key
+                BigInteger prizePool = toBigInteger(1); // Prize pool
+
+                Assertions.assertThatThrownBy(() -> {
+                        createLottery(
+                                player1,
+                                lotteryId, // Lottery account key
+                                BigInteger.valueOf(716473264415L), // Creator account key
+                                BigInteger.valueOf(123456789), // Random seed
+                                System.currentTimeMillis() + LOTTERY_DURATION_MS, // Deadline
+                                LOTTERY_ENTRY_COST, // Entry cost
+                                prizePool // Prize pool
+                        );
+                }).isInstanceOf(RuntimeException.class)
+                  .hasMessageContaining("Could not create lottery");  
+        
+        }
+
+        @ContractTest(previous = "testPurchaseCredits")
+        void testCreateLotteryWithInsufficientBalance() {
+                // Confirm player1 has expected balance before creating lottery
+                assertSecretBalance(
+                        player1,
+                        toBigInteger(1000)
+                );
+
+                // Attempt to create a lottery with insufficient balance
+                BigInteger lotteryId = BigInteger.valueOf(716473264417L); // Lottery account key
+                BigInteger prizePool = toBigInteger(1_000_000); // More than available
+
+                Assertions.assertThatThrownBy(() -> {
+                        createLottery(
+                                player1,
+                                lotteryId, // Lottery account key
+                                BigInteger.valueOf(716473264415L), // Creator account key
+                                BigInteger.valueOf(123456789), // Random seed
+                                System.currentTimeMillis() + LOTTERY_DURATION_MS, // Deadline
+                                LOTTERY_ENTRY_COST, // Entry cost
+                                prizePool // Prize pool
+                        );
+                }).isInstanceOf(RuntimeException.class)
+                  .hasMessageContaining("Could not create lottery");    
+        }
+
+
+
 
 
 
@@ -264,8 +347,7 @@ final class LotteryTest extends JunitContractTest {
 
                 // Deploy lottery contract
                 byte[] initLotteryRpc = Lottery.initialize(
-                        token,
-                        DECIMALS
+                        token
                 );
                 lottery = blockchain.deployZkContract(deployer, LOTTERY_CONTRACT, initLotteryRpc);
         }
@@ -312,6 +394,38 @@ final class LotteryTest extends JunitContractTest {
         private TxExecution redeemCredits(BlockchainAddress wallet, BigInteger credits) {
                 byte[] action = Lottery.redeemCredits(credits);
                 return blockchain.sendAction(wallet, lottery, action);
+        }
+
+        private PendingInputId createLottery(
+                BlockchainAddress wallet,
+                BigInteger lottery_account_key,
+                BigInteger creator_account_key,
+                BigInteger random_seed,
+                long deadline,
+                BigInteger entry_cost,
+                BigInteger prize_pool
+        ) {
+
+                // Assertions.assertThat(prize_pool).isNull();
+                SecretInput input = Lottery.createLottery(
+                        lottery_account_key,
+                        deadline,
+                        entry_cost,
+                        prize_pool
+                ).secretInput(
+                        new LotteryCreationSecret(
+                                lottery_account_key,
+                                creator_account_key,
+                                random_seed
+                        )
+                );
+
+                return blockchain.sendSecretInput(
+                                lottery,
+                                wallet,
+                                input.secretInput(),
+                                input.publicRpc());
+
         }
 
         // private void createDefaultLottery() {
@@ -435,9 +549,37 @@ final class LotteryTest extends JunitContractTest {
         private void assertSecretBalance(BlockchainAddress assetOwner, BigInteger expectedBalance, BigInteger... accountKey) {
                 Lottery.ContractState cstate = getLotteryContractState();
 
-                Assertions.assertThat(cstate.accounts().size()).isGreaterThanOrEqualTo(0);
+                Assertions.assertThat(cstate.userAccounts().size()).isGreaterThanOrEqualTo(0);
 
-                Lottery.SecretVarId varId = cstate.accounts().get(assetOwner);
+                Lottery.SecretVarId varId = cstate.userAccounts().get(assetOwner);
+
+                Assertions.assertThat(varId).isNotNull();
+
+                CompactBitArray varVal = zkNodes.getSecretVariable(lottery, varId.rawId());
+
+                // Deserialize from CompactBitArray to AccountBalance
+                AccountBalance accountBalance = deserializeAccountBalance(varVal);
+
+                if (accountKey.length > 0) {
+                        // If accountKey is provided, assert it matches
+                        BigInteger expectedAccountKey = accountKey[0];
+                        Assertions.assertThat(accountBalance.accountKey()).isEqualTo(expectedAccountKey);
+                } else {
+                        // If no accountKey is provided, just check the balance
+                        Assertions.assertThat(accountBalance.accountKey()).isNotNull();
+                }
+
+                // Assert the balance matches the expected value
+                Assertions.assertThat(accountBalance.balance()).isEqualTo(expectedBalance);
+        }
+
+        private void assertLotterySecretBalance(BigInteger lotteryId, BigInteger expectedBalance, BigInteger... accountKey) {
+                Lottery.ContractState cstate = getLotteryContractState();
+
+                Assertions.assertThat(cstate.lotteryAccounts().size()).isGreaterThanOrEqualTo(0);
+
+                Lottery.SecretVarId varId = cstate.lotteryAccounts().get(lotteryId);
+
 
                 Assertions.assertThat(varId).isNotNull();
 

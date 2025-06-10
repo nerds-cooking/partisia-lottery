@@ -359,6 +359,27 @@ final class LotteryTest extends JunitContractTest {
 
                 blockchain.waitForBlockProductionTime(lotteryDeadline);
 
+                // tmp debugging
+                CompactBitArray ticket = zkNodes.getSecretVariable(lottery, 16);
+
+                // Assertions.assertThat(ticket).isNull();
+                // Decode the ticket
+                BitInput stream = BitInput.create(ticket.data());
+                BigInteger lotteryAccountKey = stream.readUnsignedBigInteger(128);
+                BigInteger playerAccountKey = stream.readUnsignedBigInteger(128);
+                BigInteger ticketEntropy = stream.readUnsignedBigInteger(128);
+                BigInteger ticketCount = stream.readUnsignedBigInteger(128);
+                Assertions.assertThat(lotteryAccountKey).isEqualTo(VALID_LOTTERY_ID);
+                Assertions.assertThat(playerAccountKey).isEqualTo(BigInteger.valueOf(716473264415L));
+                Assertions.assertThat(ticketEntropy).isGreaterThan(BigInteger.ZERO);
+                Assertions.assertThat(ticketCount).isGreaterThan(BigInteger.ZERO);
+
+                // Pre-draw secret state assertions
+                SecretLotteryState preSecretState = getSecretLotteryState(VALID_LOTTERY_ID);
+                Assertions.assertThat(preSecretState).isNotNull();
+                Assertions.assertThat(preSecretState.tickets()).isGreaterThan(BigInteger.ZERO); // Tickets should be purchased
+                Assertions.assertThat(preSecretState.entropy()).isNotNull(); // Entropy should be set
+
                 // Draw the lottery winner
                 TxExecution execution = drawLottery(player1, VALID_LOTTERY_ID);
 

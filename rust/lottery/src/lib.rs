@@ -495,12 +495,6 @@ impl ContractState {
                     LotteryStatus::Open {} => {
                         let creator = lstate.creator;
 
-                    //     assert!(false, "debug2 {:?} {:?} {:?}",
-                    //         zk_state.get_variable(lstate.secret_state_id.unwrap()).unwrap(),
-                    //         zk_state.get_variable(self.get_lottery_account_var_id(&lottery_id).unwrap()).unwrap(),
-                    //         zk_state.get_variable(self.get_user_account_var_id(&creator).unwrap()).unwrap()
-                    // );
-
                         zk_state_change.push(zk_compute::draw_lottery_winner_start(
                             lstate.secret_state_id.unwrap(),
                             self.get_lottery_account_var_id(&lottery_id).unwrap(),
@@ -1001,11 +995,9 @@ pub fn variable_opened(
 
                 // Promote the pending secret state ID to the lottery state ID
                 state.promote_lottery_pending_secret_state_id(lottery_id);
-
-                // lottery.entries_svars.push(result_variable.variable_id);
-
-                // Add the ticket to the lottery
-                // lottery.add_ticket(owner); // TODO!
+                
+                // Add the ticket to the lottery entries
+                lottery.entries_svars.push(result_variable.variable_id);
 
                 // Update the lottery in the state
                 // state.lotteries.insert(lottery_id, lottery);
@@ -1014,6 +1006,8 @@ pub fn variable_opened(
         VariableKind::LotteryWinnerDrawResult { lottery_id } => {
 
             let result = read_draw_result(&result_variable);
+
+            assert!(false, "debug: {:?}", result);
             // Check that the winner was drawn successfully
             if !result.successful {
                 fail_safely(
@@ -1303,6 +1297,7 @@ pub fn ticket_purchase_inputted(
 
     match input_metadata.metadata {
         VariableKind::LotteryTicketPurchaseSecretData { owner, lottery_id } => {
+            // assert!(false, "debug: {:?}", ticket_purchase_id);
 
             let lstate = state.get_lottery(&lottery_id).unwrap_or_else(|| {
                 panic!("Lottery with ID {} not found in state!", lottery_id);

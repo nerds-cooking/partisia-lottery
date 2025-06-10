@@ -388,7 +388,7 @@ pub fn draw_lottery_winner(
 
     // Calculate winner index
     let winner_index = if total_tickets > Sbu128::from(0) {
-        lottery_state.entropy & total_tickets
+        (lottery_state.entropy & total_tickets) - Sbu128::from(1)
     } else {
         Sbu128::from(0)
     };
@@ -396,10 +396,14 @@ pub fn draw_lottery_winner(
     // Iterate over the entries until we find the winner
     let mut cidx = Sbu128::from(0); // Current index in the entries
 
+    let mut matches = Sbu128::from(0);
     for variable_id in secret_variable_ids() {
-        if is_lottery_ticket_purchase(variable_id, lottery_balance.account_key) != Sbu1::from(false) {
+        let kind = load_metadata::<u8>(variable_id);
+
+        if kind == VARIABLE_KIND_DISCRIMINANT_LOTTERY_TICKET_PURCHASE {
             let ticket: LotteryTicketPurchaseSecret = load_sbi::<LotteryTicketPurchaseSecret>(variable_id);
 
+            matches = matches + Sbu128::from(1); // ! Debug
             // Found a lottery ticket
             if winner_index >= cidx && winner_index < cidx + ticket.tickets {
                 // Found the winner
@@ -431,7 +435,7 @@ pub fn draw_lottery_winner(
         DrawResult {
             lottery_id: lottery_account_key,
             successful: winner_id != Sbu128::from(0),
-            winner_id
+            winner_id: matches // !debug
         }
     )
 }
@@ -448,17 +452,6 @@ fn is_account_balance(variable_id: SecretVarId) -> bool {
     }
 
     false
-}
-
-/// Produces true if the given [`SecretVarId`] points to a [`LotteryTicketPurchaseSecret`].
-fn is_lottery_ticket_purchase(variable_id: SecretVarId, lottery_id: AccountKey) -> Sbu1 {
-    let kind = load_metadata::<u8>(variable_id);
-
-    if kind == VARIABLE_KIND_DISCRIMINANT_LOTTERY_TICKET_PURCHASE {
-        let lottery_purchase: LotteryTicketPurchaseSecret = load_sbi::<LotteryTicketPurchaseSecret>(variable_id);
-        return lottery_purchase.lottery_account_key == lottery_id;
-    }
-    Sbu1::from(false)
 }
 
 /// Produces true if the given [`Sbu128`] would be negative if casted to [`Sbi128`].

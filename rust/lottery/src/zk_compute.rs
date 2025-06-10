@@ -3,6 +3,7 @@ use pbc_zk::*;
 
 const VARIABLE_KIND_DISCRIMINANT_USER_ACCOUNT: u8 = 3;
 const VARIABLE_KIND_DISCRIMINANT_LOTTERY_ACCOUNT: u8 = 4;
+const VARIABLE_KIND_DISCRIMINANT_LOTTERY_TICKET_PURCHASE: u8 = 11;
 
 // Can represent a user account OR a lottery account
 type AccountKey = Sbu128;
@@ -13,6 +14,13 @@ type TokenAmount = Sbu128;
 pub struct AccountBalance {
     pub account_key: AccountKey,
     pub balance: TokenAmount,
+}
+
+// Secret lottery state
+#[derive(Debug, Clone, CreateTypeSpec, SecretBinary)]
+pub struct SecretLotteryState {
+    pub entropy: Sbu128,
+    pub tickets: Sbu128
 }
 
 // Metadata for account balance
@@ -37,6 +45,21 @@ pub struct LotteryCreationSecret {
     creator_account_key: AccountKey,
     random_seed: Sbu128
 }
+
+/// Secret-shared information for purchasing lottery tickets
+#[derive(Debug, Clone, Copy, CreateTypeSpec, SecretBinary)]
+pub struct LotteryTicketPurchaseSecret {
+    /// The account key of the lottery that the ticket is being purchased for.
+    lottery_account_key: AccountKey,
+    /// The account key of the user that is purchasing the ticket.
+    purchaser_account_key: AccountKey,
+    /// The amount of tickets to purchase.
+    tickets: TokenAmount,
+    /// Entropy provided by purchaser to generate randomness in the lottery.
+    entropy: Sbu128,
+}
+
+/// Secret-shared information for drawing a lottery winner
 
 /// Balance of the recipient, and whether the balance even exist.
 ///
@@ -64,6 +87,33 @@ pub struct ComputationResultPub {
     pub successful: bool,
 }
 
+#[derive(Debug, Clone, Copy, CreateTypeSpec, SecretBinary)]
+pub struct DrawResult {
+    lottery_id: AccountKey,
+    /// Whether the computation was successful.
+    successful: Sbu1,
+    /// The winner's account key, if the draw was successful.
+    /// If the draw was not successful, this will be `0`.
+    winner_id: AccountKey
+}
+
+#[derive(Debug, Clone, Copy, CreateTypeSpec, SecretBinary)]
+pub struct DrawResultPub {
+    pub lottery_id: u128,
+    /// Whether the computation was successful.
+    pub successful: bool,
+    /// The winner's account key, if the draw was successful.
+    /// If the draw was not successful, this will be `0`.
+    pub winner_id: u128,
+}
+
+#[derive(Debug, Clone, Copy, CreateTypeSpec, SecretBinary)]
+pub struct SecretLotteryStatePub {
+    /// Entropy used to generate randomness in the lottery.
+    pub entropy: u128,
+    /// Number of tickets purchased in the lottery.
+    pub tickets: u128,
+}
 
 /// Finds the balance of the recipient based on the [`AccountKey`].
 ///
@@ -146,22 +196,28 @@ fn update_all_balances(
 /// The computation verifies that the given [`AccountBalance::account_key`] haven't been
 /// used yet. If the `account_key` has been used, it will create a new account with `account_key` zero.
 #[zk_compute(shortname = 0x70)]
-pub fn create_account(sender_balance_id: SecretVarId) -> AccountBalance {
+pub fn create_account(account_creation_id: SecretVarId, account_key: u128) -> (AccountBalance, ComputationResult) {
     let mut account_details: AccountCreationSecret =
-        load_sbi::<AccountCreationSecret>(sender_balance_id);
+        load_sbi::<AccountCreationSecret>(account_creation_id);
 
     let recipient_balance =
-        find_recipient_balance(account_details.account_key, sender_balance_id);
+        find_recipient_balance(account_details.account_key, account_creation_id);
 
     let account_key = if recipient_balance.exists {
         Sbu128::from(0)
     } else {
         account_details.account_key
     };
-    AccountBalance {
-        account_key,
-        balance: Sbu128::from(0),
-    }
+    (
+        AccountBalance {
+            account_key,
+            balance: Sbu128::from(0),
+        },
+        ComputationResult {
+            amount: Sbu128::from(0),
+            successful: account_key == account_details.account_key
+        }
+    )
 }
 
 #[zk_compute(shortname = 0x71)]
@@ -209,13 +265,14 @@ pub fn burn_credits(
 // Returns:
 // 0: AccountBalance -> updated creator account balance
 // 1: AccountBalance -> new lottery balance
-// 2: Whether the creation was successful or not
+// 2: SecretLotteryState -> new lottery state
+// 3: Whether the creation was successful or not
 #[zk_compute(shortname = 0x73)]
 pub fn create_lottery(
     lottery_creation_id: SecretVarId,
     creator_balance_id: SecretVarId,
     prize_pool: u128
-) -> (AccountBalance, AccountBalance, ComputationResult) {
+) -> (AccountBalance, AccountBalance, SecretLotteryState, ComputationResult) {
     let mut creator_balance: AccountBalance = load_sbi::<AccountBalance>(creator_balance_id);
     let mut lottery_creation_secret: LotteryCreationSecret = load_sbi::<LotteryCreationSecret>(lottery_creation_id);
 
@@ -245,10 +302,138 @@ pub fn create_lottery(
             balance: secret_amount,
         };
 
-    (creator_balance, lottery_balance, ComputationResult {
-        amount: secret_amount,
-        successful
-    })
+    (
+        creator_balance,
+        lottery_balance, 
+        SecretLotteryState {
+            entropy: lottery_creation_secret.random_seed,
+            tickets: Sbu128::from(0)
+        },
+        ComputationResult {
+            amount: secret_amount,
+            successful
+        }
+    )
+}
+
+// Returns:
+// 0: AccountBalance -> updated purchaser account balance
+// 1: AccountBalance -> updated lottery account balance
+// 2: SecretLotteryState -> new lottery state
+// 3: ComputationResult -> whether the purchase was successful or not
+#[zk_compute(shortname = 0x74)]
+pub fn purchase_lottery_ticket(
+    lottery_ticket_purchase_id: SecretVarId,
+    purchaser_balance_id: SecretVarId,
+    lottery_balance_id: SecretVarId,
+    lottery_state_id: SecretVarId,
+    ticket_price: u128
+) -> (AccountBalance, AccountBalance, SecretLotteryState, ComputationResult) {
+    let mut lottery_ticket_purchase_secret: LotteryTicketPurchaseSecret =
+        load_sbi::<LotteryTicketPurchaseSecret>(lottery_ticket_purchase_id);
+
+    let mut purchaser_balance: AccountBalance = load_sbi::<AccountBalance>(purchaser_balance_id);
+    let mut lottery_balance: AccountBalance = load_sbi::<AccountBalance>(lottery_balance_id);
+
+    let mut lottery_state: SecretLotteryState = load_sbi::<SecretLotteryState>(lottery_state_id);
+
+    let secret_amount = lottery_ticket_purchase_secret.tickets * Sbu128::from(ticket_price);
+    let mut successful = Sbu1::from(false);
+
+    if !is_negative(purchaser_balance.balance - secret_amount) {
+        // If the purchaser has enough balance, we can proceed with the purchase
+        successful = Sbu1::from(true);
+
+        // Decrease the credits from the sender balance
+        purchaser_balance.balance = purchaser_balance.balance - secret_amount;
+        // Increase the lottery balance
+        lottery_balance.balance = lottery_balance.balance + secret_amount;
+
+        lottery_state.tickets = lottery_state.tickets + lottery_ticket_purchase_secret.tickets;
+        lottery_state.entropy = lottery_state.entropy + lottery_ticket_purchase_secret.entropy;
+    }
+
+    (
+        purchaser_balance,
+        lottery_balance,
+        lottery_state, 
+        ComputationResult {
+            amount: secret_amount,
+            successful
+        }
+    )
+}
+
+// Picks a winner from the lottery using the generated entropy with the modulus of the number of tickets to find the winner.
+// (Winner claims their winnings by calling `claim_winnings` function - cannot be done here as we need the winner known in metadata to handle balance change).
+// Returns:
+// 0: AccountBalance -> Update lottery balance
+// 1: AccountBalance -> Creator balance
+// 2: DrawResult -> whether the winner was successfully drawn or not
+#[zk_compute(shortname = 0x75)]
+pub fn draw_lottery_winner(
+    secret_lottery_state_id: SecretVarId,
+    lottery_balance_id: SecretVarId,
+    creator_balance_id: SecretVarId,
+    entry_cost: u128,
+    prize_pool: u128
+) -> (AccountBalance, AccountBalance, DrawResult) {
+    let mut lottery_state: SecretLotteryState = load_sbi::<SecretLotteryState>(secret_lottery_state_id);
+    let mut lottery_balance: AccountBalance = load_sbi::<AccountBalance>(lottery_balance_id);
+    let mut creator_balance: AccountBalance = load_sbi::<AccountBalance>(creator_balance_id);
+
+    let total_tickets = lottery_state.tickets;
+    let mut winner_id = Sbu128::from(0);
+    let lottery_account_key = lottery_balance.account_key;
+
+    // Calculate winner index
+    let winner_index = if total_tickets > Sbu128::from(0) {
+        lottery_state.entropy & total_tickets
+    } else {
+        Sbu128::from(0)
+    };
+        
+    // Iterate over the entries until we find the winner
+    let mut cidx = Sbu128::from(0); // Current index in the entries
+
+    for variable_id in secret_variable_ids() {
+        if is_lottery_ticket_purchase(variable_id, lottery_balance.account_key) != Sbu1::from(false) {
+            let ticket: LotteryTicketPurchaseSecret = load_sbi::<LotteryTicketPurchaseSecret>(variable_id);
+
+            // Found a lottery ticket
+            if winner_index >= cidx && winner_index < cidx + ticket.tickets {
+                // Found the winner
+                winner_id = ticket.purchaser_account_key;
+
+                let remainder_balance = 
+                    Sbu128::from(prize_pool) - lottery_balance.balance - 
+                    (lottery_state.tickets * Sbu128::from(entry_cost));
+
+                if !is_negative(remainder_balance) {
+                    // Move the remainder to the creator's balance
+                    creator_balance.balance = creator_balance.balance + remainder_balance;
+
+                    // Reduce the lottery balance by the amount of the remainder
+                    lottery_balance.balance = lottery_balance.balance - remainder_balance;
+
+                    // Winner will claim in a separate flow
+                }
+            } else {
+                // Increment the current index by the number of tickets purchased
+                cidx = cidx + ticket.tickets;
+            }
+        }
+    }
+
+    (
+        lottery_balance,
+        creator_balance,
+        DrawResult {
+            lottery_id: lottery_account_key,
+            successful: winner_id != Sbu128::from(0),
+            winner_id
+        }
+    )
 }
 
 /// Produces true if the given [`SecretVarId`] points to a [`DepositBalanceSecrets`].
@@ -263,6 +448,17 @@ fn is_account_balance(variable_id: SecretVarId) -> bool {
     }
 
     false
+}
+
+/// Produces true if the given [`SecretVarId`] points to a [`LotteryTicketPurchaseSecret`].
+fn is_lottery_ticket_purchase(variable_id: SecretVarId, lottery_id: AccountKey) -> Sbu1 {
+    let kind = load_metadata::<u8>(variable_id);
+
+    if kind == VARIABLE_KIND_DISCRIMINANT_LOTTERY_TICKET_PURCHASE {
+        let lottery_purchase: LotteryTicketPurchaseSecret = load_sbi::<LotteryTicketPurchaseSecret>(variable_id);
+        return lottery_purchase.lottery_account_key == lottery_id;
+    }
+    Sbu1::from(false)
 }
 
 /// Produces true if the given [`Sbu128`] would be negative if casted to [`Sbi128`].

@@ -3,7 +3,6 @@ use read_write_state_derive::ReadWriteState;
 
 use pbc_contract_common::address::Address;
 use pbc_contract_common::zk::SecretVarId;
-use pbc_contract_common::avl_tree_map::AvlTreeMap;
 
 pub type LotteryId = u128;
 
@@ -37,12 +36,14 @@ pub struct LotteryState {
     pub winner: Option<Address>,
     pub entry_cost: u128,
     pub prize_pool: u128,
-    
-    // Entropy data for winner selection
-    pub random_seed: Option<SecretVarId>,
+
+    pub secret_state_id: Option<SecretVarId>,
+    // Secret var ID is stored in pending while we confirm if an interaction was successful or not
+    // so not to overwrite valid state when errors occur
+    pub pending_secret_state_id: Option<SecretVarId>,
 
     // pub entries: Vec<Entry>, // ! contains address
-    // pub entries_svars: Vec<SecretVarId>,
+    pub entries_svars: Vec<SecretVarId>,
     // pub winner_svar_id: Option<SecretVarId>,
 }
 

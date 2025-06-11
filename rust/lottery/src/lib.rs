@@ -466,8 +466,6 @@ impl ContractState {
                     );
                 }
 
-                self.redundant_variables.push(ticket_purchase_id);
-
                 let lstate = self.get_lottery(&lottery_id).unwrap();
 
                 zk_state_change.push(zk_compute::purchase_lottery_ticket_start(
@@ -1387,7 +1385,9 @@ pub fn draw_winner(
 
     
 
-    // assert!(false, "debug: {:?}", zk_state.get_variable(id: SecretVarId::new(2)).unwrap().metadata)
+    // assert!(false, "debug: {:?}", zk_state.get_variable(
+    //     SecretVarId::new(16)
+    // ).unwrap().metadata);
 
     let lottery = state.get_lottery(&lottery_id).unwrap_or_else(|| {
         panic!("Lottery with ID {} not found in state!", lottery_id);

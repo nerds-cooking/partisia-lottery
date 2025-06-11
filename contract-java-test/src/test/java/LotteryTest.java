@@ -360,6 +360,8 @@ final class LotteryTest extends JunitContractTest {
                 blockchain.waitForBlockProductionTime(lotteryDeadline);
 
                 // tmp debugging
+                // String s = blockchain.getContractStateJson(lottery).getNode("").toPrettyString();
+                // Assertions.assertThat(s).isNull();
                 CompactBitArray ticket = zkNodes.getSecretVariable(lottery, 16);
 
                 // Assertions.assertThat(ticket).isNull();

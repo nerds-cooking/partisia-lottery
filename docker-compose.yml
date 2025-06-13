@@ -4,7 +4,7 @@ services:
     container_name: lottery_mongo
     restart: always
     ports:
-      - "27010:27017"
+      - "27011:27017"
     volumes:
       - lottery_mongo_data:/data/db
 

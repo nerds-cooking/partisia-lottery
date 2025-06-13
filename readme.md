@@ -191,36 +191,83 @@ This implementation uses several advanced cryptographic techniques:
 
 ### Development Setup
 
-1. **Clone the repository**
+#### **Clone the repository**
 
 ```bash
-git clone https://github.com/yourusername/partisia-lottery.git
+git clone https://github.com/nerds-cooking/partisia-lottery.git
 cd partisia-lottery
 ```
 
-2. **Start the backend services**
+#### API
 
 ```bash
-docker-compose up -d
+cd api
+yarn install
 ```
 
-3. **Install frontend dependencies**
+- Copy `.env.example` to `.env` and configure the values (you may use example values for testing).
+- To run in development mode:
+
+```bash
+yarn start:dev
+```
+
+- To run in production mode:
+
+```bash
+yarn build
+yarn migrate       # Run initial database migrations
+yarn start:prod
+```
+
+🔧 **MongoDB Setup:**
+
+- Start MongoDB via Docker (see below).
+- Note: The API expects MongoDB to run on port `27011`. Adjust your `.env` file accordingly.
+
+#### Frontend
 
 ```bash
 cd frontend
 yarn install
 ```
 
-4. **Run the frontend application**
+- Copy `.env.example` to `.env` and update values as needed.
+- To start the frontend in development:
 
 ```bash
 yarn dev
 ```
 
-5. **Generate TypeScript bindings from contract ABI**
+- To build for production:
+
+```bash
+yarn build
+cp -R dist/* /var/www/lottery-fe  # Or your preferred hosting path
+```
+
+#### **Generate TypeScript bindings from contract ABI**
 
 ```bash
 ./ts-abi-codegen.sh
 ```
 
 Visit `http://localhost:5173` to access the application.
+
+## 🐳 MongoDB with Docker
+
+Start MongoDB:
+
+```bash
+docker compose up -d
+```
+
+Stop MongoDB:
+
+```bash
+docker compose down
+```
+
+> **Note:** MongoDB runs on port `27011` by default in this setup. Be sure your `.env` connection string reflects this.
+
+---

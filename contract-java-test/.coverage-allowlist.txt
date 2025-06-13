@@ -1,2 +1,2 @@
-trivia/src/lib.rs
-trivia/src/zk_compute.rs
+lottery/src/lib.rs
+lottery/src/zk_compute.rs

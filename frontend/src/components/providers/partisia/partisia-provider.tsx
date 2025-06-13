@@ -4,7 +4,7 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
-  useState
+  useState,
 } from 'react';
 import { useSettings } from '../setting/useSettings';
 
@@ -37,11 +37,11 @@ export const PartisiaProvider = ({ children }: PartisiaProviderProps) => {
       try {
         await _sdk.connect({
           permissions: ['sign'] as never,
-          dappName: 'NC Partisia Trivia',
+          dappName: 'NC Partisia Lottery',
           chainId:
             (networkArg || network) === 'mainnet'
               ? 'Partisia Blockchain'
-              : 'Partisia Blockchain Testnet'
+              : 'Partisia Blockchain Testnet',
         });
 
         console.log('connected!');
@@ -88,7 +88,7 @@ export const PartisiaProvider = ({ children }: PartisiaProviderProps) => {
       value={{
         sdk,
         connect,
-        isConnected
+        isConnected,
       }}
     >
       {children}

@@ -8,19 +8,39 @@ import { Eye, Shield, Zap } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
 export function HomePage() {
-  const { lotteries, loading, error, page, limit, total, nextPage, prevPage } =
-    useLotteries(1, 3, LotteryStatusD.Open);
+  // Active lotteries (Open)
+  const {
+    lotteries: activeLotteries,
+    loading: loadingActive,
+    error: errorActive,
+    page: pageActive,
+    limit: limitActive,
+    total: totalActive,
+    nextPage: nextPageActive,
+    prevPage: prevPageActive
+  } = useLotteries(1, 3, LotteryStatusD.Open);
+
+  // Drawn lotteries
+  const {
+    lotteries: drawnLotteries,
+    loading: loadingDrawn,
+    error: errorDrawn,
+    page: pageDrawn,
+    limit: limitDrawn,
+    total: totalDrawn,
+    nextPage: nextPageDrawn,
+    prevPage: prevPageDrawn
+  } = useLotteries(1, 3, LotteryStatusD.Drawn);
 
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (listRef.current) {
       listRef.current.classList.remove('animate-fade-in');
-
       void listRef.current.offsetWidth;
       listRef.current.classList.add('animate-fade-in');
     }
-  }, [page]);
+  }, [pageActive, pageDrawn]);
 
   return (
     <div className='space-y-12'>
@@ -64,6 +84,7 @@ export function HomePage() {
         </div> */}
       </section>
 
+      {/* Active Lotteries */}
       <section className='space-y-6'>
         <div className='text-center animate-fade-in'>
           <h2 className='text-3xl font-bold text-white mb-4'>
@@ -74,21 +95,21 @@ export function HomePage() {
           </p>
         </div>
 
-        {loading ? (
+        {loadingActive ? (
           <div className='text-center py-12 animate-fade-in'>
             <LoadingSpinner text='Loading lotteries...' />
           </div>
-        ) : error ? (
+        ) : errorActive ? (
           <div className='text-center py-12 animate-fade-in'>
-            <p className='text-red-400 mb-4'>Error: {error}</p>
+            <p className='text-red-400 mb-4'>Error: {errorActive}</p>
           </div>
-        ) : lotteries?.length > 0 ? (
+        ) : activeLotteries?.length > 0 ? (
           <>
             <div
               ref={listRef}
               className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in'
             >
-              {lotteries?.map((lottery, index) => (
+              {activeLotteries.map((lottery, index) => (
                 <LotteryCard
                   key={lottery.lotteryId}
                   lottery={lottery}
@@ -97,19 +118,71 @@ export function HomePage() {
               ))}
             </div>
             <PaginationControls
-              page={page}
-              limit={limit}
-              total={total}
-              prevPage={prevPage}
-              nextPage={nextPage}
-              disabledPrev={loading}
-              disabledNext={loading}
+              page={pageActive}
+              limit={limitActive}
+              total={totalActive}
+              prevPage={prevPageActive}
+              nextPage={nextPageActive}
+              disabledPrev={loadingActive}
+              disabledNext={loadingActive}
             />
           </>
         ) : (
           <div className='text-center py-12 animate-fade-in'>
             <p className='text-white/60 mb-4'>
               No active lotteries at the moment
+            </p>
+            <p className='text-white/40 text-sm'>
+              Check back soon for new opportunities!
+            </p>
+          </div>
+        )}
+      </section>
+
+      {/* Drawn Lotteries */}
+      <section className='space-y-6'>
+        <div className='text-center animate-fade-in'>
+          <h2 className='text-3xl font-bold text-white mb-4'>
+            Drawn Lotteries
+          </h2>
+          <p className='text-white/70'>
+            These lotteries have been drawn and are awaiting prize claims
+          </p>
+        </div>
+
+        {loadingDrawn ? (
+          <div className='text-center py-12 animate-fade-in'>
+            <LoadingSpinner text='Loading drawn lotteries...' />
+          </div>
+        ) : errorDrawn ? (
+          <div className='text-center py-12 animate-fade-in'>
+            <p className='text-red-400 mb-4'>Error: {errorDrawn}</p>
+          </div>
+        ) : drawnLotteries?.length > 0 ? (
+          <>
+            <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in'>
+              {drawnLotteries.map((lottery, index) => (
+                <LotteryCard
+                  key={lottery.lotteryId}
+                  lottery={lottery}
+                  index={index}
+                />
+              ))}
+            </div>
+            <PaginationControls
+              page={pageDrawn}
+              limit={limitDrawn}
+              total={totalDrawn}
+              prevPage={prevPageDrawn}
+              nextPage={nextPageDrawn}
+              disabledPrev={loadingDrawn}
+              disabledNext={loadingDrawn}
+            />
+          </>
+        ) : (
+          <div className='text-center py-12 animate-fade-in'>
+            <p className='text-white/60 mb-4'>
+              No drawn lotteries at the moment
             </p>
             <p className='text-white/40 text-sm'>
               Check back soon for new opportunities!

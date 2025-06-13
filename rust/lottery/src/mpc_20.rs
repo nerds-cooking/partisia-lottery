@@ -1,14 +1,27 @@
 
+//! This module provides an interface for interacting with MPC20 token contracts.
+//! 
+//! MPC20 is the Partisia Blockchain's equivalent of ERC20 tokens, providing a standard
+//! token interface with privacy features powered by Multi-Party Computation (MPC).
+//! This module contains utilities for transferring tokens between accounts, checking
+//! balances, and other token operations needed by the lottery system.
+
 use pbc_contract_common::address::Address;
 use pbc_contract_common::events::{EventGroupBuilder, GasCost};
 use pbc_contract_common::shortname::Shortname;
 
 /// Represents an individual [MPC20 contract](https://partisiablockchain.gitlab.io/documentation/smart-contracts/integration/mpc-20-token-contract.html) on the blockchain.
+/// 
+/// This struct provides methods to interact with the token contract for operations
+/// like transferring tokens between accounts.
 pub struct MPC20Contract {
+    /// Address of the MPC20 token contract on the blockchain
     contract_address: Address,
 }
 
-/// Token transfer amounts for the token contract.
+/// Represents token transfer amounts for the MPC20 contract.
+/// 
+/// Uses u128 to accommodate tokens with large supplies and small decimal units.
 pub type TokenTransferAmount = u128;
 
 impl MPC20Contract {

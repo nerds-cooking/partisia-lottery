@@ -350,7 +350,7 @@ pub fn purchase_lottery_ticket(
         lottery_balance,
         lottery_state,
         ComputationResult {
-            amount: secret_amount,
+            amount: Sbu128::from(0),
             successful,
         },
     )

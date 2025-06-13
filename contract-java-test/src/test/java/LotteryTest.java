@@ -390,7 +390,7 @@ final class LotteryTest extends JunitContractTest {
 
                 // Assert the lottery state after drawing
                 LotteryState lotteryState = getLotteryState(VALID_LOTTERY_ID);
-                Assertions.assertThat(lotteryState.status().discriminant()).isEqualTo(Lottery.LotteryStatusD.CLOSED);
+                Assertions.assertThat(lotteryState.status().discriminant()).isEqualTo(Lottery.LotteryStatusD.DRAWN);
 
                 // Assert the secret state of the lottery
                 SecretLotteryState secretState = getSecretLotteryState(VALID_LOTTERY_ID);

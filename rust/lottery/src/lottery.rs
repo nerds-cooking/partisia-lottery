@@ -22,8 +22,12 @@ pub enum LotteryStatus {
     #[discriminant(3)]
     Closed {},
 
-    /// Winner has been revealed and lottery is finalized
+    /// Winner has been selected
     #[discriminant(4)]
+    Drawn {},
+
+    /// Winner has claimed their prize
+    #[discriminant(5)]
     Complete {},
 }
 

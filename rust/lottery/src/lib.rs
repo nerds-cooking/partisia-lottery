@@ -399,7 +399,7 @@ impl ContractState {
                 zk_state_change.push(zk_compute::mint_credits_start(
                     self.get_user_account_var_id(&account).unwrap(),
                     credits,
-                    Some(SHORTNAME_SIMPLE_WORK_ITEM_COMPLETE),
+                    Some(SHORTNAME_MINT_COMPLETE),
                     &VariableKind::UserAccount { owner: account }
                 ));
             }
@@ -580,8 +580,7 @@ impl ContractState {
                 let lstate = self.get_lottery(&lottery_id).unwrap();
 
                 match lstate.status {
-                    // TODO: Status improvements
-                    LotteryStatus::Closed {} => {
+                    LotteryStatus::Drawn {} => {
                         let winner = lstate.winner.unwrap();
 
                         zk_state_change.push(zk_compute::claim_winnings_start(
@@ -681,15 +680,26 @@ impl ContractState {
         self.lotteries.insert(lottery_id, lottery);
     }
 
-    pub fn mark_lottery_as_closed(
+    pub fn mark_lottery_as_drawn(
         &mut self,
         lottery_id: LotteryId,
         winner: Address
     ) {
         let mut lottery = self.get_lottery(&lottery_id).unwrap().clone();
 
-        lottery.status = LotteryStatus::Closed {};
+        lottery.status = LotteryStatus::Drawn {};
         lottery.winner = Some(winner);
+
+        self.lotteries.insert(lottery_id, lottery);
+    }
+
+    pub fn mark_lottery_as_closed(
+        &mut self,
+        lottery_id: LotteryId
+    ) {
+        let mut lottery = self.get_lottery(&lottery_id).unwrap().clone();
+
+        lottery.status = LotteryStatus::Closed {};
 
         self.lotteries.insert(lottery_id, lottery);
     }
@@ -809,7 +819,7 @@ pub fn create_account_inputted(
 ///
 /// Transfers ownership of the output variables to the owners defined by [`VariableKind::owner()`].
 #[zk_on_compute_complete(shortname = 0x61)]
-pub fn simple_work_item_complete(
+pub fn mint_complete(
     context: ContractContext,
     mut state: ContractState,
     zk_state: ZkState<VariableKind>,
@@ -1141,7 +1151,7 @@ pub fn variable_opened(
                 // winner_id is the account ID from ZK data
                 let winner: Address = state.ua_account_key_map.get(&result.winner_id).unwrap();
                 
-                state.mark_lottery_as_closed(lottery_id, winner);
+                state.mark_lottery_as_drawn(lottery_id, winner);
             }
         }
         _ => {
@@ -1577,11 +1587,9 @@ pub fn claim(
         panic!("Lottery with ID {} not found in state!", lottery_id);
     });
 
-    // assert!(false, "debug: {:?}", lottery.status);
-
     assert!(
-        lottery.status == LotteryStatus::Closed {},
-        "Lottery with ID {} is not closed!",
+        lottery.status == LotteryStatus::Drawn {},
+        "Lottery with ID {} is not drawn!",
         lottery_id
     );
 
@@ -1612,13 +1620,17 @@ pub fn claim_complete(
     let mut zk_state_change = vec![];
     let mut event_groups = vec![];
 
-
+    // Get the lottery ID from the metadata of the lottery account variable (index 1)
+    let lottery_id: LotteryId = match zk_state.get_variable(output_variables[1]).unwrap().metadata {
+        VariableKind::LotteryAccount { owner, lottery_id } => lottery_id,
+        _ => panic!("Unexpected metadata type in claim complete!"),
+    };
 
     // Move all variables to their expected owners
     state.transfer_variables_to_owner(&zk_state, output_variables, &mut zk_state_change);
     state.clean_up_redundant_secret_variables(&mut zk_state_change);
 
-    // TODO: Update lottery state, its finalised!
+    state.mark_lottery_as_closed(lottery_id);
 
     trigger_continue_queue_if_needed(context, &state, &mut event_groups);
 

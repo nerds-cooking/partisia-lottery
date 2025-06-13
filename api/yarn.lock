@@ -1143,6 +1143,19 @@
   dependencies:
     "@secata-public/bitmanipulation-ts" "3.3.0"
 
+"@partisiablockchain/zk-client@^5.228.0":
+  version "5.228.0"
+  resolved "https://registry.yarnpkg.com/@partisiablockchain/zk-client/-/zk-client-5.228.0.tgz#a41f007e2259d97e0810a99b7cfd5419b2c34aef"
+  integrity sha512-ZGs0zT/7tGQfk442W/nn0vzN10mJO1mw6S91Qzogj4Wr6lxD9D6I5TrlI5MZK/cqVGuXiypzP+M1f3SNRLjkJw==
+  dependencies:
+    "@partisiablockchain/blockchain-api-transaction-client" "5.130.0"
+    "@secata-public/bitmanipulation-ts" "^3.1.0"
+    "@types/bn.js" "^5.1.6"
+    "@types/elliptic" "^6.4.18"
+    bn.js "^5.2.1"
+    elliptic "^6.5.7"
+    hash.js "^1.1.7"
+
 "@pkgr/core@^0.2.3":
   version "0.2.4"
   resolved "https://registry.yarnpkg.com/@pkgr/core/-/core-0.2.4.tgz#d897170a2b0ba51f78a099edccd968f7b103387c"
@@ -1175,7 +1188,7 @@
   resolved "https://registry.yarnpkg.com/@sec-ant/readable-stream/-/readable-stream-0.4.1.tgz#60de891bb126abfdc5410fdc6166aca065f10a0c"
   integrity sha512-831qok9r2t8AlxLko40y2ebgSDhenenCatLVeW/uBtnHPyhHOvG0C7TvfgecV+wHzIm5KUICgzmVpWS+IMEAeg==
 
-"@secata-public/bitmanipulation-ts@3.3.0", "@secata-public/bitmanipulation-ts@^3.1.0":
+"@secata-public/bitmanipulation-ts@3.3.0", "@secata-public/bitmanipulation-ts@^3.1.0", "@secata-public/bitmanipulation-ts@^3.3.0":
   version "3.3.0"
   resolved "https://registry.yarnpkg.com/@secata-public/bitmanipulation-ts/-/bitmanipulation-ts-3.3.0.tgz#98dc475f7b1d5ddb86dc287d3918cb8becdb1509"
   integrity sha512-IwQXthRPie7tp+4QCPdQuqntYdWY1ccwqoaSv0vFQ5r5mEjGKhk/TaO4UI5Tby9L2oQ/fhjK2PrGghbYVmEbDQ==
@@ -2926,7 +2939,7 @@ electron-to-chromium@^1.5.73:
   resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.5.137.tgz#53a7fef3ea9f7eb5fcf704454050ff930c43ed92"
   integrity sha512-/QSJaU2JyIuTbbABAo/crOs+SuAZLS+fVVS10PVrIT9hrRkmZl8Hb0xPSkKRUUWHQtYzXHpQUW3Dy5hwMzGZkA==
 
-elliptic@^6.4.0, elliptic@^6.5.4, elliptic@^6.5.5:
+elliptic@^6.4.0, elliptic@^6.5.4, elliptic@^6.5.5, elliptic@^6.5.7:
   version "6.6.1"
   resolved "https://registry.yarnpkg.com/elliptic/-/elliptic-6.6.1.tgz#3b8ffb02670bf69e382c7f65bf524c97c5405c06"
   integrity sha512-RaddvvMatK2LJHqFJ+YA4WysVN5Ita9E35botqIYspQ4TkRAlCicdzKOjlyv/1Za5RyTNn7di//eEV0uTAfe3g==

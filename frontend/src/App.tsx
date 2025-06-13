@@ -3,21 +3,15 @@ import { Route, BrowserRouter as Router, Routes } from 'react-router-dom';
 import './App.css';
 import Footer from './components/Footer';
 import { Navbar } from './components/nav';
-import ZkFileUploadPage from './pages/ZkFileUploadPage';
+import { Spinner } from './components/ui/Spinner';
+import { CreateLotteryPage } from './pages/create-lottery';
+import { LotteryViewPage } from './pages/lottery';
 
 const HomePage = lazy(() =>
   import('./pages/home').then((mod) => ({ default: mod.HomePage }))
 );
-const GamesListPage = lazy(() =>
-  import('./pages/games').then((mod) => ({ default: mod.GamesListPage }))
-);
-const CreateGamePage = lazy(() =>
-  import('./pages/create-game').then((mod) => ({ default: mod.CreateGamePage }))
-);
-const GameViewPage = lazy(() =>
-  import('./pages/game/game-view').then((mod) => ({
-    default: mod.GameViewPage
-  }))
+const DashboardPage = lazy(() =>
+  import('./pages/dashboard').then((mod) => ({ default: mod.DashboardPage }))
 );
 
 function Layout({
@@ -39,13 +33,12 @@ function App() {
   return (
     <Router>
       <Layout>
-        <Suspense fallback={<div>Loading...</div>}>
+        <Suspense fallback={<Spinner />}>
           <Routes>
             <Route path='/' element={<HomePage />} />
-            <Route path='/upload' element={<ZkFileUploadPage />} />
-            {/* <Route path='/games' element={<GamesListPage />} />
-            <Route path='/create-game' element={<CreateGamePage />} />
-            <Route path='/games/:gameId' element={<GameViewPage />} /> */}
+            <Route path='/dashboard' element={<DashboardPage />} />
+            <Route path='/create-lottery' element={<CreateLotteryPage />} />
+            <Route path='/lottery/:lotteryId' element={<LotteryViewPage />} />
           </Routes>
         </Suspense>
       </Layout>

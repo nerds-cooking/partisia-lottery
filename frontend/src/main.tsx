@@ -8,7 +8,6 @@ import { PartisiaProvider } from './components/providers/partisia/partisia-provi
 import { SettingsProvider } from './components/providers/setting/setting-provider.tsx';
 import { Toaster } from './components/ui/sonner.tsx';
 import './index.css';
-import { LotteryProvider } from './lib/LotteryContext.tsx';
 import './polyfill.ts';
 
 const queryClient = new QueryClient();
@@ -20,10 +19,8 @@ createRoot(document.getElementById('root')!).render(
         <ThemeProvider defaultTheme='dark' storageKey='vite-ui-theme'>
           <PartisiaProvider>
             <AuthProvider>
-              <LotteryProvider>
-                <App />
-                <Toaster position='top-center' richColors />
-              </LotteryProvider>
+              <App />
+              <Toaster position='top-center' richColors />
             </AuthProvider>
           </PartisiaProvider>
         </ThemeProvider>

@@ -1366,7 +1366,7 @@
     "@noble/hashes" "~1.4.0"
     "@scure/base" "~1.1.6"
 
-"@secata-public/bitmanipulation-ts@3.3.0", "@secata-public/bitmanipulation-ts@^3.1.0":
+"@secata-public/bitmanipulation-ts@3.3.0", "@secata-public/bitmanipulation-ts@^3.1.0", "@secata-public/bitmanipulation-ts@^3.3.0":
   version "3.3.0"
   resolved "https://registry.yarnpkg.com/@secata-public/bitmanipulation-ts/-/bitmanipulation-ts-3.3.0.tgz#98dc475f7b1d5ddb86dc287d3918cb8becdb1509"
   integrity sha512-IwQXthRPie7tp+4QCPdQuqntYdWY1ccwqoaSv0vFQ5r5mEjGKhk/TaO4UI5Tby9L2oQ/fhjK2PrGghbYVmEbDQ==

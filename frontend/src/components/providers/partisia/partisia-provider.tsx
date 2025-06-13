@@ -15,6 +15,7 @@ export interface PartisiaProviderProps {
 export interface PartisiaContextType {
   sdk: PartisiaSdk | null;
   connect: () => Promise<void>;
+  isConnected: boolean;
 }
 
 export const PartisiaContext = createContext<PartisiaContextType | undefined>(
@@ -59,6 +60,8 @@ export const PartisiaProvider = ({ children }: PartisiaProviderProps) => {
     [network]
   );
 
+  const isConnected = !!(sdk && sdk.connection && sdk.connection.account);
+
   useEffect(() => {
     const timeout = setTimeout(() => {
       // Check if there's a saved connection in local storage
@@ -84,7 +87,8 @@ export const PartisiaProvider = ({ children }: PartisiaProviderProps) => {
     <PartisiaContext.Provider
       value={{
         sdk,
-        connect
+        connect,
+        isConnected
       }}
     >
       {children}

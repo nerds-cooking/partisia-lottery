@@ -13,7 +13,7 @@ import {
   BlockchainStateClient,
   BN,
   SecretInputBuilder,
-  StateWithClient,
+  StateWithClient
 } from '@partisiablockchain/abi-client';
 
 type Option<K> = K | undefined;
@@ -161,7 +161,7 @@ export class LotteryApiGenerated {
       lotteryAccounts,
       lotteries,
       workQueue,
-      redundantVariables,
+      redundantVariables
     };
   }
   public deserializeSecretVarId(_input: AbiInput): SecretVarId {
@@ -223,7 +223,7 @@ export class LotteryApiGenerated {
       secretStateId,
       pendingSecretStateId,
       entriesSvars,
-      winnerIndex,
+      winnerIndex
     };
   }
   public deserializeLotteryStatus(_input: AbiInput): LotteryStatus {
@@ -286,7 +286,7 @@ export class LotteryApiGenerated {
       discriminant: WorkListItemD.PendingAccountCreation,
       account,
       accountKey,
-      accountCreationId,
+      accountCreationId
     };
   }
   public deserializeWorkListItemPendingPurchaseCredits(
@@ -297,7 +297,7 @@ export class LotteryApiGenerated {
     return {
       discriminant: WorkListItemD.PendingPurchaseCredits,
       account,
-      credits,
+      credits
     };
   }
   public deserializeWorkListItemPendingRedeemCredits(
@@ -308,7 +308,7 @@ export class LotteryApiGenerated {
     return {
       discriminant: WorkListItemD.PendingRedeemCredits,
       account,
-      credits,
+      credits
     };
   }
   public deserializeWorkListItemPendingLotteryCreation(
@@ -323,7 +323,7 @@ export class LotteryApiGenerated {
       account,
       lotteryId,
       prizePool,
-      lotteryCreationId,
+      lotteryCreationId
     };
   }
   public deserializeWorkListItemPendingLotteryTicketPurchase(
@@ -336,7 +336,7 @@ export class LotteryApiGenerated {
       discriminant: WorkListItemD.PendingLotteryTicketPurchase,
       account,
       lotteryId,
-      ticketPurchaseId,
+      ticketPurchaseId
     };
   }
   public deserializeWorkListItemPendingEntropyPublish(
@@ -353,7 +353,7 @@ export class LotteryApiGenerated {
     return {
       discriminant: WorkListItemD.PendingDrawWinner,
       lotteryId,
-      winnerIndex,
+      winnerIndex
     };
   }
   public deserializeWorkListItemPendingClaimPrize(
@@ -404,7 +404,7 @@ export enum LotteryStatusD {
   Pending = 1,
   Open = 2,
   Closed = 3,
-  Complete = 4,
+  Complete = 4
 }
 export type LotteryStatus =
   | LotteryStatusPending
@@ -436,7 +436,7 @@ export enum WorkListItemD {
   PendingLotteryTicketPurchase = 5,
   PendingEntropyPublish = 6,
   PendingDrawWinner = 7,
-  PendingClaimPrize = 8,
+  PendingClaimPrize = 8
 }
 export type WorkListItem =
   | WorkListItemPendingAccountCreation
@@ -634,7 +634,7 @@ export function createLottery(
     AbiBitOutput.serialize((_out) => {
       serializeLotteryCreationSecret(_out, secret_input_lambda);
     });
-  return new SecretInputBuilder<>(_publicRpc, _secretInput);
+  return new SecretInputBuilder(_publicRpc, _secretInput);
 }
 
 export function purchaseTickets(
@@ -650,7 +650,7 @@ export function purchaseTickets(
     AbiBitOutput.serialize((_out) => {
       serializeLotteryTicketPurchaseSecret(_out, secret_input_lambda);
     });
-  return new SecretInputBuilder<>(_publicRpc, _secretInput);
+  return new SecretInputBuilder(_publicRpc, _secretInput);
 }
 
 export function deserializeState(state: StateWithClient): ContractState;

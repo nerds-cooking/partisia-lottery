@@ -6,9 +6,9 @@ import { UserModule } from '../users/user.module';
 import { validationSchema } from './config/validation';
 
 import { Logger } from '@nestjs/common';
-import { GameModule } from 'src/game/game.module';
 import { CsrfMiddleware } from 'src/middleware/csrf.middleware';
 import { SettingModule } from 'src/settings/setting.module';
+import { LotteryModule } from '../lottery/lottery.module';
 import { AppController } from './controllers/app.controller';
 
 @Module({
@@ -33,7 +33,7 @@ import { AppController } from './controllers/app.controller';
     forwardRef(() => SettingModule),
     forwardRef(() => AuthModule),
     forwardRef(() => UserModule),
-    forwardRef(() => GameModule),
+    forwardRef(() => LotteryModule),
   ],
   controllers: [AppController],
   providers: [CsrfMiddleware],

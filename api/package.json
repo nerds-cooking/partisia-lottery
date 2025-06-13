@@ -29,6 +29,8 @@
     "@nestjs/platform-express": "^11.0.1",
     "@partisiablockchain/abi-client": "^5.190.0",
     "@partisiablockchain/blockchain-api-transaction-client": "^5.130.0",
+    "@partisiablockchain/zk-client": "^5.228.0",
+    "@secata-public/bitmanipulation-ts": "^3.3.0",
     "connect-mongo": "^5.1.0",
     "cookie-parser": "^1.4.7",
     "csrf-csrf": "^3.1.0",

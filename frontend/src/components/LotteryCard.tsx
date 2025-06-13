@@ -3,49 +3,32 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { LotteryStatusD } from '@/lib/LotteryApiGenerated';
+import { getStatusColor, getStatusText } from '@/utils/status';
 import { Clock, Shield, Trophy, Users } from 'lucide-react';
 import type React from 'react';
-import type { Lottery } from '../types';
+import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { type Lottery } from '../types';
 import CountdownTimer from './CountdownTimer';
+import { useSettings } from './providers/setting/useSettings';
 
 interface LotteryCardProps {
   lottery: Lottery;
-  onClick?: () => void;
   index?: number;
 }
 
-const LotteryCard: React.FC<LotteryCardProps> = ({
-  lottery,
-  onClick,
-  index = 0
-}) => {
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'bg-green-500';
-      case 'drawing':
-        return 'bg-yellow-500';
-      case 'completed':
-        return 'bg-blue-500';
-      default:
-        return 'bg-gray-500';
-    }
-  };
+const LotteryCard: React.FC<LotteryCardProps> = ({ lottery, index = 0 }) => {
+  const navigate = useNavigate();
+  const { settings } = useSettings();
 
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'Active';
-      case 'drawing':
-        return 'Drawing in Progress';
-      case 'completed':
-        return 'Completed';
-      default:
-        return 'Unknown';
-    }
-  };
+  const tokenSymbol = useMemo(
+    () =>
+      settings?.find((setting) => setting.name === 'tokenSymbol')?.value ||
+      'MPC',
+    [settings]
+  );
 
-  // Calculate animation values directly based on index
   const animationDelay = `${Math.min((index % 5) * 0.2 + 0.2, 1.0)}s`;
 
   return (
@@ -68,11 +51,13 @@ const LotteryCard: React.FC<LotteryCardProps> = ({
         <div className='flex items-center space-x-4 text-white/60'>
           <div className='flex items-center space-x-1'>
             <Trophy className='h-4 w-4' />
-            <span className='text-sm'>{lottery.prizePool} MPC</span>
+            <span className='text-sm'>
+              {lottery.prizePool} {tokenSymbol}
+            </span>
           </div>
           <div className='flex items-center space-x-1'>
             <Users className='h-4 w-4' />
-            <span className='text-sm'>{lottery.participants} participants</span>
+            <span className='text-sm'>{0} participants</span>
           </div>
         </div>
       </CardHeader>
@@ -80,13 +65,13 @@ const LotteryCard: React.FC<LotteryCardProps> = ({
       <CardContent className='space-y-4'>
         <p className='text-white/80 text-sm'>{lottery.description}</p>
 
-        {lottery.status === 'active' && (
+        {lottery.status === LotteryStatusD.Open && (
           <div className='space-y-2'>
             <div className='flex items-center space-x-2 text-white/60'>
               <Clock className='h-4 w-4' />
               <span className='text-sm'>Draw in:</span>
             </div>
-            <CountdownTimer endTime={lottery.endTime} />
+            <CountdownTimer endTime={new Date(lottery.deadline)} />
           </div>
         )}
 
@@ -99,15 +84,17 @@ const LotteryCard: React.FC<LotteryCardProps> = ({
           <div className='text-white/60'>
             <span className='text-sm'>Ticket Price: </span>
             <span className='text-white font-semibold'>
-              {lottery.ticketPrice} MPC
+              {lottery.entryCost} {tokenSymbol}
             </span>
           </div>
           <Button
-            onClick={onClick}
+            onClick={() => navigate(`/lottery/${lottery.lotteryId}`)}
             className='bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 button-gradient'
-            disabled={lottery.status !== 'active'}
+            disabled={lottery.status !== LotteryStatusD.Open}
           >
-            {lottery.status === 'active' ? 'Enter Lottery' : 'View Details'}
+            {lottery.status === LotteryStatusD.Open
+              ? 'Enter Lottery'
+              : 'View Details'}
           </Button>
         </div>
       </CardContent>

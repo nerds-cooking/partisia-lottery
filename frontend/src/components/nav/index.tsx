@@ -57,18 +57,14 @@ export function Navbar() {
             </Link>
             {isAuthenticated && (
               <Link
-                to='/dashboard'
-                className={`text-white/80 hover:text-white transition-colors relative group${location.pathname.startsWith('/dashboard') ? ' font-bold' : ''}`}
+                to='/create-lottery'
+                className={`text-white/80 hover:text-white transition-colors relative group${location.pathname.startsWith('/create-lottery') ? ' font-bold' : ''}`}
               >
                 <Plus className='h-4 w-4 inline mr-1' />
                 Create
                 <span className='absolute bottom-0 left-0 w-0 h-0.5 bg-purple-500 transition-all duration-300 group-hover:w-full'></span>
               </Link>
             )}
-            {/* <div className='flex items-center space-x-2 text-white/60'>
-              <Shield className='h-4 w-4' />
-              <span className='text-sm'>MPC Protected</span>
-            </div> */}
           </nav>
 
           <div className='flex items-center space-x-4'>

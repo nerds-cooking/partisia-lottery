@@ -1,5 +1,7 @@
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { PaginationControls } from '@/components/Pagination';
+import { useAuth } from '@/components/providers/auth/useAuth';
+import { usePartisia } from '@/components/providers/partisia/usePartisia';
 import { useSettings } from '@/components/providers/setting/useSettings';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -39,6 +41,8 @@ export function DashboardPage() {
   const { hasAccount, loading: hasAccountLoading } =
     useHasAccountOnChain(30000);
   const { settings } = useSettings();
+  const { isAuthenticated } = useAuth();
+  const { isConnected } = usePartisia();
 
   const tokenSymbol = useMemo(
     () => settings?.find((setting) => setting.name === 'tokenSymbol')?.value,
@@ -57,12 +61,20 @@ export function DashboardPage() {
     prevPage: userEntriesPrevPage
   } = useGetUserEntries(userEntriesPage, userEntriesLimit);
 
+  // Only fetch balance if connected and authenticated
   const {
     balance,
     loading: isBalanceLoading,
     error,
     refresh
-  } = useCreditsBalance();
+  } = isConnected && isAuthenticated
+    ? useCreditsBalance()
+    : {
+        balance: '0',
+        loading: false,
+        error: null,
+        refresh: () => {}
+      };
 
   const { data: stats } = useGetUserStats();
 

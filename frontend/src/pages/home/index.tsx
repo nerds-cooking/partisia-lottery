@@ -20,17 +20,17 @@ export function HomePage() {
     prevPage: prevPageActive
   } = useLotteries(1, 3, LotteryStatusD.Open);
 
-  // Drawn lotteries
+  // Completed lotteries
   const {
-    lotteries: drawnLotteries,
-    loading: loadingDrawn,
-    error: errorDrawn,
-    page: pageDrawn,
-    limit: limitDrawn,
-    total: totalDrawn,
-    nextPage: nextPageDrawn,
-    prevPage: prevPageDrawn
-  } = useLotteries(1, 3, LotteryStatusD.Drawn);
+    lotteries: completedLotteries,
+    loading: loadingCompleted,
+    error: errorCompleted,
+    page: pageCompleted,
+    limit: limitCompleted,
+    total: totalCompleted,
+    nextPage: nextPageCompleted,
+    prevPage: prevPageCompleted
+  } = useLotteries(1, 3, LotteryStatusD.Complete);
 
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -40,7 +40,7 @@ export function HomePage() {
       void listRef.current.offsetWidth;
       listRef.current.classList.add('animate-fade-in');
     }
-  }, [pageActive, pageDrawn]);
+  }, [pageActive, pageCompleted]);
 
   return (
     <div className='space-y-12'>
@@ -139,29 +139,29 @@ export function HomePage() {
         )}
       </section>
 
-      {/* Drawn Lotteries */}
+      {/* Completed Lotteries */}
       <section className='space-y-6'>
         <div className='text-center animate-fade-in'>
           <h2 className='text-3xl font-bold text-white mb-4'>
-            Drawn Lotteries
+            Completed Lotteries
           </h2>
           <p className='text-white/70'>
-            These lotteries have been drawn and are awaiting prize claims
+            These lotteries have finished and prizes have been claimed
           </p>
         </div>
 
-        {loadingDrawn ? (
+        {loadingCompleted ? (
           <div className='text-center py-12 animate-fade-in'>
-            <LoadingSpinner text='Loading drawn lotteries...' />
+            <LoadingSpinner text='Loading completed lotteries...' />
           </div>
-        ) : errorDrawn ? (
+        ) : errorCompleted ? (
           <div className='text-center py-12 animate-fade-in'>
-            <p className='text-red-400 mb-4'>Error: {errorDrawn}</p>
+            <p className='text-red-400 mb-4'>Error: {errorCompleted}</p>
           </div>
-        ) : drawnLotteries?.length > 0 ? (
+        ) : completedLotteries?.length > 0 ? (
           <>
             <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in'>
-              {drawnLotteries.map((lottery, index) => (
+              {completedLotteries.map((lottery, index) => (
                 <LotteryCard
                   key={lottery.lotteryId}
                   lottery={lottery}
@@ -170,19 +170,19 @@ export function HomePage() {
               ))}
             </div>
             <PaginationControls
-              page={pageDrawn}
-              limit={limitDrawn}
-              total={totalDrawn}
-              prevPage={prevPageDrawn}
-              nextPage={nextPageDrawn}
-              disabledPrev={loadingDrawn}
-              disabledNext={loadingDrawn}
+              page={pageCompleted}
+              limit={limitCompleted}
+              total={totalCompleted}
+              prevPage={prevPageCompleted}
+              nextPage={nextPageCompleted}
+              disabledPrev={loadingCompleted}
+              disabledNext={loadingCompleted}
             />
           </>
         ) : (
           <div className='text-center py-12 animate-fade-in'>
             <p className='text-white/60 mb-4'>
-              No drawn lotteries at the moment
+              No completed lotteries at the moment
             </p>
             <p className='text-white/40 text-sm'>
               Check back soon for new opportunities!

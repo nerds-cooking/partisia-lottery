@@ -221,6 +221,7 @@ export class LotteryService {
     | (Omit<Lottery, 'status'> & {
         status: number;
         creator: string;
+        participants: string;
         winner: string | null;
       })
     | null
@@ -241,12 +242,18 @@ export class LotteryService {
       throw new Error(`Lottery with ID ${lotteryId} not found in database`);
     }
 
+    const participants = await this.lotteryEntriesModel
+      .find({ lotteryId })
+      .distinct('userId');
+    const participantCount = participants.length;
+
     return {
       ...lottery,
       status: Number(onChainLottery.status),
       lotteryId: onChainLottery.lotteryId,
       creator: onChainLottery.creator,
       winner: onChainLottery.winner,
+      participants: participantCount.toString(),
     };
   }
 
@@ -282,6 +289,7 @@ export class LotteryService {
           status: Number(l.status),
           lotteryId: l.lotteryId,
           creator: l.creator,
+          winner: l.winner,
           participants: participantCount,
         };
       }),

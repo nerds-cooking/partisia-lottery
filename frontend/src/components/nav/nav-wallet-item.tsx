@@ -5,7 +5,6 @@ import { useAuth } from '../providers/auth/useAuth';
 import { usePartisia } from '../providers/partisia/usePartisia';
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -66,7 +65,11 @@ export function NavWalletItem() {
                   <form
                     className='flex flex-col gap-4'
                     onSubmit={(e) => {
+                      e.stopPropagation();
+
+                      alert('Setting username...');
                       e.preventDefault();
+
                       setUsername(usernameInput.trim()).then(() => {
                         setModalOpen(false);
                         setUsernameInput('');
@@ -92,18 +95,18 @@ export function NavWalletItem() {
                       <AlertDialogCancel
                         className='bg-white/30 backdrop-blur-sm text-white border border-white/20 hover:bg-white/40 rounded-md'
                         onClick={() => {
-                          setUsernameInput('');
+                          setModalOpen(false);
                         }}
                       >
                         Cancel
                       </AlertDialogCancel>
-                      <AlertDialogAction
+                      <Button
                         type='submit'
                         className='bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white rounded-md'
                         disabled={!usernameInput.trim()}
                       >
                         Save
-                      </AlertDialogAction>
+                      </Button>
                     </AlertDialogFooter>
                   </form>
                 </div>

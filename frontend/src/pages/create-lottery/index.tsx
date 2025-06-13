@@ -189,11 +189,11 @@ export function CreateLotteryPage() {
       );
 
       const lotteryId = new BN(Math.floor(Math.random() * 1000000).toString());
-      // const deadline = new BN(
-      //   Math.floor(Date.now() / 1000) + Number(formData.duration) * 3600
-      // );
+      const deadline = new BN(
+        Math.floor(Date.now() / 1000) + Number(formData.duration) * 3600
+      );
       // deadline in one minte from now for testing purposes
-      const deadline = new BN(Math.floor(Date.now() / 1000) + 60);
+      // const deadline = new BN(Math.floor(Date.now() / 1000) + 60);
       const entryCost = new BN(formData.ticketPrice);
       const prizePool = new BN(formData.prizePool);
       const randomSeed = new BN(Math.floor(Math.random() * 1000000).toString());

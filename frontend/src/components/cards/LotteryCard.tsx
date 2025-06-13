@@ -80,6 +80,14 @@ const LotteryCard: React.FC<LotteryCardProps> = ({ lottery, index = 0 }) => {
           </div>
         )}
 
+        {lottery.status === LotteryStatusD.Complete && lottery.winner && (
+          <div className='flex items-center space-x-2 text-xs font-mono text-white/80 break-all'>
+            <Trophy className='h-4 w-4 text-yellow-400' />
+            <span className='text-green-400 font-semibold'>Winner:</span>
+            <span>{lottery.winner}</span>
+          </div>
+        )}
+
         <div className='flex items-center space-x-2 text-white/60'>
           <Shield className='h-4 w-4' />
           <span className='text-sm'>MPC-Protected Draw</span>
@@ -98,7 +106,6 @@ const LotteryCard: React.FC<LotteryCardProps> = ({ lottery, index = 0 }) => {
               scrollTo(0, 0);
             }}
             className='bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 button-gradient'
-            disabled={lottery.status !== LotteryStatusD.Open}
           >
             {lottery.status === LotteryStatusD.Open
               ? 'Enter Lottery'

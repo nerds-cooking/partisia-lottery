@@ -326,3 +326,15 @@ pub fn approve_relative(
     state.update_allowance_relative(context.sender, spender, delta);
     state
 }
+
+/// Mint function to create new tokens. Do not use in production, this is for testing purposes to allow people to mint tokens to test with
+#[action(shortname = 0x06)]
+pub fn mint(context: ContractContext, mut state: TokenState, amount: u128) -> TokenState {
+    state.total_supply += amount;
+    // Update the balance of the sender
+    let current_balance = state.balance_of(&context.sender);
+
+    state.update_balance(context.sender, current_balance + amount);
+
+    state
+}

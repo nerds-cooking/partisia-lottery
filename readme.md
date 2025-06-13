@@ -155,7 +155,7 @@ The winner can claim their prize:
 
 Our lottery implementation leverages Partisia Blockchain's MPC capabilities to ensure:
 
-1. **Participant Privacy**: No one can see how many tickets a user has purchased. Unfortunately, due to the state changes that occur when purchasing it is able to be inferred which lottery a user has entered, but not how many tickets they have purchased.
+1. **Participant Privacy**: No one can see how many tickets a user has purchased. Unfortunately, due to the state changes that occur when purchasing it is possible to be inferred which lottery a user has entered, but not how many tickets they have purchased.
 2. **Fair Winner Selection**: Random selection that cannot be manipulated. Entropy is gathered from the lottery creator and all participants secretly, ensuring that the winner is chosen fairly and transparently.
 3. **Secure Balance Management**: User credit balances remain private
 4. **Tamper-Proof Operations**: All contract operations are secured by blockchain consensus

@@ -5,7 +5,7 @@ import { Loader2 } from 'lucide-react';
 
 export function AuthPageWrapper({ children }: { children: React.ReactNode }) {
   const { sdk } = usePartisia();
-  const { loading, login, isAuthenticated, authenticating, logout } = useAuth();
+  const { loading, login, isAuthenticated, authenticating } = useAuth();
 
   if (loading) {
     return (

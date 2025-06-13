@@ -94,6 +94,48 @@ export class LotteryController {
     }
   }
 
+  @Get('/entries')
+  async getUserLotteryEntries(
+    @RequestSession() session: RequestSessionType,
+    @Query('page') page = '1',
+    @Query('limit') limit = '10',
+  ) {
+    if (!session.user) {
+      throw new Error('User not found in session');
+    }
+
+    try {
+      const pageNum = Math.max(1, parseInt(page, 10) || 1);
+      const limitNum = Math.max(1, parseInt(limit, 10) || 10);
+      const result = await this.lotteryService.getUserLotteryEntries(
+        session.user.address,
+        pageNum,
+        limitNum,
+      );
+      return { ...result, page: pageNum, limit: limitNum };
+    } catch (e) {
+      console.error('Error fetching user lottery entries:', e);
+      throw new Error('Failed to fetch user lottery entries');
+    }
+  }
+
+  @Get('/user-stats')
+  async getUserStats(@RequestSession() session: RequestSessionType) {
+    if (!session.user) {
+      throw new Error('User not found in session');
+    }
+
+    try {
+      const stats = await this.lotteryService.getUserStats(
+        session.user.address,
+      );
+      return stats;
+    } catch (e) {
+      console.error('Error fetching user stats:', e);
+      throw new Error('Failed to fetch user stats');
+    }
+  }
+
   @Post('/')
   async createLottery(
     @Body() payload: CreateLotteryPayload,
@@ -112,20 +154,6 @@ export class LotteryController {
     } catch (e) {
       console.error('Error creating lottery:', e);
       throw new Error('Failed to create lottery');
-    }
-  }
-
-  @Get(':lotteryId')
-  async getLotteryById(@Param('lotteryId') lotteryId: string) {
-    try {
-      const lottery = await this.lotteryService.getLotteryById(lotteryId);
-      if (!lottery) {
-        throw new Error('Lottery not found');
-      }
-      return { lottery };
-    } catch (e) {
-      console.error('Error fetching lottery by ID:', e);
-      throw new Error('Failed to fetch lottery by ID');
     }
   }
 
@@ -157,6 +185,45 @@ export class LotteryController {
     } catch (e: any) {
       console.error('Error fetching lottery account:', e);
       throw new Error('Failed to fetch lottery account');
+    }
+  }
+
+  @Get(':lotteryId')
+  async getLotteryById(@Param('lotteryId') lotteryId: string) {
+    try {
+      const lottery = await this.lotteryService.getLotteryById(lotteryId);
+      if (!lottery) {
+        throw new Error('Lottery not found');
+      }
+      return { lottery };
+    } catch (e) {
+      console.error('Error fetching lottery by ID:', e);
+      throw new Error('Failed to fetch lottery by ID');
+    }
+  }
+
+  @Post(':lotteryId/enter')
+  async enterLottery(
+    @Param('lotteryId') lotteryId: string,
+    @Body() body: { entryCount: number; entryCost: string; entryTxn: string },
+    @RequestSession() session: RequestSessionType,
+  ) {
+    if (!session.user) {
+      throw new Error('User not found in session');
+    }
+
+    try {
+      const result = await this.lotteryService.enterLottery(
+        lotteryId,
+        body.entryTxn,
+        body.entryCost,
+        body.entryCount,
+        session.user,
+      );
+      return { result };
+    } catch (e) {
+      console.error('Error entering lottery:', e);
+      throw new Error('Failed to enter lottery');
     }
   }
 }

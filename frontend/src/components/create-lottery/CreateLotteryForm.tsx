@@ -265,7 +265,7 @@ const CreateLotteryForm: React.FC<CreateLotteryFormProps> = ({
               type='button'
               onClick={() => {
                 setStep('preview');
-                window.scrollTo(0, 0);
+                scrollTo(0, 0);
               }}
               className='w-full bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600'
             >

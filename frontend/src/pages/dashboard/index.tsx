@@ -1,7 +1,5 @@
 import LoadingSpinner from '@/components/LoadingSpinner';
-import LotteryCard from '@/components/LotteryCard';
 import { PaginationControls } from '@/components/Pagination';
-import { useLotteries } from '@/components/providers/lottery/useLotteries';
 import { useSettings } from '@/components/providers/setting/useSettings';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,13 +10,12 @@ import {
   DialogTitle
 } from '@/components/ui/dialog';
 import { useCreditsBalance } from '@/hooks/useCreditsBalance';
+import { useGetUserEntries } from '@/hooks/useGetUserEntries';
+import { useGetUserStats } from '@/hooks/useGetUserStats';
 import { useHasAccountOnChain } from '@/hooks/useHasAccountOnChain';
-import { LotteryStatusD } from '@/lib/LotteryApiGenerated';
 import {
-  Badge,
   CircleMinusIcon,
   CirclePlusIcon,
-  Clock,
   CoinsIcon,
   Loader,
   Plus,
@@ -27,7 +24,7 @@ import {
   TrendingUp,
   Trophy
 } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CreateAccountForm } from '../../components/CreateAccountForm';
 import { PurchaseCreditsForm } from '../../components/PurchaseCreditsForm';
@@ -41,35 +38,24 @@ export function DashboardPage() {
   const [isCreateAccountModalOpen, setCreateAccountModalOpen] = useState(false);
   const { hasAccount, loading: hasAccountLoading } =
     useHasAccountOnChain(30000);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [userTickets] = useState([] as any[]); // suppress type error for now
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [lotteries] = useState([] as any[]); // suppress type error for now
   const { settings } = useSettings();
 
-  const {
-    lotteries: activeLotteries,
-    loading,
-    page: activePage,
-    limit: activeLimit,
-    total: activeTotal,
-    nextPage: activeNextPage,
-    prevPage: activePrevPage
-  } = useLotteries(1, 3, LotteryStatusD.Open);
+  const tokenSymbol = useMemo(
+    () => settings?.find((setting) => setting.name === 'tokenSymbol')?.value,
+    [settings]
+  );
 
+  const [userEntriesPage, setUserEntriesPage] = useState(1);
+  const userEntriesLimit = 3;
   const {
-    lotteries: completedLotteries,
-    loading: completedLotteriesLoading,
-    page: completedPage,
-    limit: completedLimit,
-    total: completedTotal,
-    nextPage: completedNextPage,
-    prevPage: completedPrevPage
-  } = useLotteries(1, 3, LotteryStatusD.Complete);
-
-  const tokenSymbol = settings?.find(
-    (setting) => setting.name === 'tokenSymbol'
-  )?.value;
+    entries,
+    loading: userEntriesLoading,
+    total: userEntriesTotal,
+    page: userEntriesCurrentPage,
+    limit: userEntriesCurrentLimit,
+    nextPage: userEntriesNextPage,
+    prevPage: userEntriesPrevPage
+  } = useGetUserEntries(userEntriesPage, userEntriesLimit);
 
   const {
     balance,
@@ -77,6 +63,14 @@ export function DashboardPage() {
     error,
     refresh
   } = useCreditsBalance();
+
+  const { data: stats } = useGetUserStats();
+
+  // Helper for date formatting
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return `${date.toLocaleDateString()} at ${date.toLocaleTimeString()}`;
+  };
 
   if (hasAccountLoading) {
     return (
@@ -106,20 +100,22 @@ export function DashboardPage() {
                 >
                   Create Account
                 </Button>
-                <Dialog
-                  open={isCreateAccountModalOpen}
-                  onOpenChange={setCreateAccountModalOpen}
-                >
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle />
-                    </DialogHeader>
-                    <CreateAccountForm
-                      onSuccess={() => setCreateAccountModalOpen(false)}
-                      onCancel={() => setCreateAccountModalOpen(false)}
-                    />
-                  </DialogContent>
-                </Dialog>
+                {isCreateAccountModalOpen && (
+                  <Dialog
+                    open={isCreateAccountModalOpen}
+                    onOpenChange={setCreateAccountModalOpen}
+                  >
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle />
+                      </DialogHeader>
+                      <CreateAccountForm
+                        onSuccess={() => setCreateAccountModalOpen(false)}
+                        onCancel={() => setCreateAccountModalOpen(false)}
+                      />
+                    </DialogContent>
+                  </Dialog>
+                )}
               </div>
             )}
             {hasAccount && (
@@ -192,91 +188,108 @@ export function DashboardPage() {
                       Redeem
                     </Button>
                   </div>
-                  <Dialog
-                    open={isAddCreditsModalOpen}
-                    onOpenChange={setAddCreditsModalOpen}
-                  >
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle />
-                      </DialogHeader>
-                      <PurchaseCreditsForm
-                        onSuccess={() => setAddCreditsModalOpen(false)}
-                        onCancel={() => setAddCreditsModalOpen(false)}
-                      />
-                    </DialogContent>
-                  </Dialog>
-                  <Dialog
-                    open={isRedeemCreditsModalOpen}
-                    onOpenChange={setRedeemCreditsModalOpen}
-                  >
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle />
-                      </DialogHeader>
-                      <RedeemCreditsForm
-                        onSuccess={() => setRedeemCreditsModalOpen(false)}
-                        onCancel={() => setRedeemCreditsModalOpen(false)}
-                      />
-                    </DialogContent>
-                  </Dialog>
+                  {isAddCreditsModalOpen && (
+                    <Dialog
+                      open={isAddCreditsModalOpen}
+                      onOpenChange={setAddCreditsModalOpen}
+                    >
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle />
+                        </DialogHeader>
+                        <PurchaseCreditsForm
+                          onSuccess={() => setAddCreditsModalOpen(false)}
+                          onCancel={() => setAddCreditsModalOpen(false)}
+                        />
+                      </DialogContent>
+                    </Dialog>
+                  )}
+                  {isRedeemCreditsModalOpen && (
+                    <Dialog
+                      open={isRedeemCreditsModalOpen}
+                      onOpenChange={setRedeemCreditsModalOpen}
+                    >
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle />
+                        </DialogHeader>
+                        <RedeemCreditsForm
+                          onSuccess={() => setRedeemCreditsModalOpen(false)}
+                          onCancel={() => setRedeemCreditsModalOpen(false)}
+                        />
+                      </DialogContent>
+                    </Dialog>
+                  )}
                 </>
               )}
             </CardContent>
           </Card>
-          <Card className='bg-white/10 backdrop-blur-md border-white/20'>
-            <CardContent className='p-6 text-center'>
-              <Trophy className='h-8 w-8 text-green-400 mx-auto mb-2' />
-              <div className='text-2xl font-bold text-white'>0</div>
-              <div className='text-white/60 text-sm'>Wins</div>
-            </CardContent>
-          </Card>
+
           <Card className='bg-white/10 backdrop-blur-md border-white/20'>
             <CardContent className='p-6 text-center'>
               <TrendingUp className='h-8 w-8 text-blue-400 mx-auto mb-2' />
-              <div className='text-2xl font-bold text-white'>{0}</div>
+              <div className='text-2xl font-bold text-white'>
+                {stats.totalSpent}
+              </div>
               <div className='text-white/60 text-sm'>{tokenSymbol} Spent</div>
             </CardContent>
           </Card>
           <Card className='bg-white/10 backdrop-blur-md border-white/20'>
             <CardContent className='p-6 text-center'>
-              <Clock className='h-8 w-8 text-yellow-400 mx-auto mb-2' />
-              <div className='text-2xl font-bold text-white'>{0}</div>
-              <div className='text-white/60 text-sm'>Active Entries</div>
+              <Ticket className='h-8 w-8 text-yellow-400 mx-auto mb-2' />
+              <div className='text-2xl font-bold text-white'>
+                {stats.totalTickets}
+              </div>
+              <div className='text-white/60 text-sm'>Total Tickets</div>
+            </CardContent>
+          </Card>
+          <Card className='bg-white/10 backdrop-blur-md border-white/20'>
+            <CardContent className='p-6 text-center'>
+              <Trophy className='h-8 w-8 text-green-400 mx-auto mb-2' />
+              <div className='text-2xl font-bold text-white'>
+                {stats.totalWins}
+              </div>
+              <div className='text-white/60 text-sm'>Wins</div>
             </CardContent>
           </Card>
         </div>
         <Card className='bg-white/10 backdrop-blur-md border-white/20'>
           <CardHeader>
-            <CardTitle className='text-white'>Your Tickets</CardTitle>
+            <CardTitle className='text-white flex items-center gap-2'>
+              <Ticket className='h-5 w-5 text-white/70' />
+              Your Tickets
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            {userTickets.length > 0 ? (
+            {userEntriesLoading ? (
+              <div className='flex items-center justify-center py-8'>
+                <LoadingSpinner text='Loading your tickets...' />
+              </div>
+            ) : entries?.length > 0 ? (
               <div className='space-y-4'>
-                {userTickets.map((ticket) => {
-                  const lottery = lotteries.find(
-                    (l) => l.id === ticket.lotteryId
-                  );
-                  if (!lottery) return null;
-
+                {entries.map((entry) => {
                   return (
                     <div
-                      key={`${ticket.lotteryId}-${ticket.purchaseTime}`}
-                      className='flex items-center justify-between bg-white/5 rounded-lg p-4'
+                      key={`${entry.lotteryId}-${entry.createdAt}`}
+                      className='flex items-center justify-between bg-white/5 rounded-lg p-4 cursor-pointer'
+                      onClick={() => navigate(`/lottery/${entry.lotteryId}`)}
                     >
-                      <div className='space-y-1'>
-                        <h4 className='text-white font-medium'>
-                          {lottery.name}
-                        </h4>
-                        <p className='text-white/60 text-sm'>
-                          {ticket.quantity} ticket
-                          {ticket.quantity > 1 ? 's' : ''} • Purchased{' '}
-                          {ticket.purchaseTime.toLocaleDateString()}
-                        </p>
+                      <div className='flex items-center space-x-3'>
+                        <Ticket className='h-6 w-6 text-white/60' />
+                        <div className='space-y-1'>
+                          <h4 className='text-white font-medium'>
+                            {entry.lottery.name}
+                          </h4>
+                          <p className='text-white/60 text-sm'>
+                            {entry.entryCount} ticket
+                            {entry.entryCount > 1 ? 's' : ''} • Purchased{' '}
+                            {formatDate(entry.createdAt)}
+                          </p>
+                        </div>
                       </div>
                       <div className='text-right'>
-                        <Badge
-                          className={`${
+                        {/* <Badge
+                          className={`$'{
                             lottery.status === 'active'
                               ? 'bg-green-500'
                               : lottery.status === 'drawing'
@@ -289,7 +302,7 @@ export function DashboardPage() {
                             : lottery.status === 'drawing'
                               ? 'Drawing'
                               : 'Completed'}
-                        </Badge>
+                        </Badge> */}
                       </div>
                     </div>
                   );
@@ -304,11 +317,30 @@ export function DashboardPage() {
                 </p>
               </div>
             )}
+            <PaginationControls
+              page={userEntriesCurrentPage}
+              limit={userEntriesCurrentLimit}
+              total={userEntriesTotal}
+              prevPage={() => {
+                setUserEntriesPage((p) => Math.max(1, p - 1));
+                userEntriesPrevPage();
+              }}
+              nextPage={() => {
+                setUserEntriesPage((p) => p + 1);
+                userEntriesNextPage();
+              }}
+              disabledPrev={userEntriesLoading || userEntriesCurrentPage === 1}
+              disabledNext={
+                userEntriesLoading ||
+                userEntriesCurrentPage * userEntriesCurrentLimit >=
+                  userEntriesTotal
+              }
+            />
           </CardContent>
         </Card>
 
         {/* Active Lotteries */}
-        <div className='space-y-6'>
+        {/* <div className='space-y-6'>
           <h2 className='text-2xl font-bold text-white'>Available Lotteries</h2>
           {activeLotteries.length > 0 ? (
             <>
@@ -332,10 +364,10 @@ export function DashboardPage() {
               <p className='text-white/60'>No active lotteries at the moment</p>
             </div>
           )}
-        </div>
+        </div> */}
 
         {/* Completed Lotteries */}
-        <div className='space-y-6'>
+        {/* <div className='space-y-6'>
           <h2 className='text-2xl font-bold text-white'>Completed Lotteries</h2>
           {completedLotteries.length > 0 ? (
             <>
@@ -361,7 +393,7 @@ export function DashboardPage() {
               </p>
             </div>
           )}
-        </div>
+        </div> */}
       </div>
     </AuthPageWrapper>
   );

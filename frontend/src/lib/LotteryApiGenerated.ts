@@ -195,17 +195,6 @@ export class LotteryApiGenerated {
         this.deserializeSecretVarId(_input);
       pendingSecretStateId = pendingSecretStateId_option;
     }
-    const entriesSvars_vecLength = _input.readI32();
-    const entriesSvars: SecretVarId[] = [];
-    for (
-      let entriesSvars_i = 0;
-      entriesSvars_i < entriesSvars_vecLength;
-      entriesSvars_i++
-    ) {
-      const entriesSvars_elem: SecretVarId =
-        this.deserializeSecretVarId(_input);
-      entriesSvars.push(entriesSvars_elem);
-    }
     let winnerIndex: Option<BN> = undefined;
     const winnerIndex_isSome = _input.readBoolean();
     if (winnerIndex_isSome) {
@@ -222,7 +211,6 @@ export class LotteryApiGenerated {
       prizePool,
       secretStateId,
       pendingSecretStateId,
-      entriesSvars,
       winnerIndex
     };
   }
@@ -235,6 +223,8 @@ export class LotteryApiGenerated {
     } else if (discriminant === 3) {
       return this.deserializeLotteryStatusClosed(_input);
     } else if (discriminant === 4) {
+      return this.deserializeLotteryStatusDrawn(_input);
+    } else if (discriminant === 5) {
       return this.deserializeLotteryStatusComplete(_input);
     }
     throw new Error('Unknown discriminant: ' + discriminant);
@@ -249,6 +239,9 @@ export class LotteryApiGenerated {
   }
   public deserializeLotteryStatusClosed(_input: AbiInput): LotteryStatusClosed {
     return { discriminant: LotteryStatusD.Closed };
+  }
+  public deserializeLotteryStatusDrawn(_input: AbiInput): LotteryStatusDrawn {
+    return { discriminant: LotteryStatusD.Drawn };
   }
   public deserializeLotteryStatusComplete(
     _input: AbiInput
@@ -396,7 +389,6 @@ export interface LotteryState {
   prizePool: BN;
   secretStateId: Option<SecretVarId>;
   pendingSecretStateId: Option<SecretVarId>;
-  entriesSvars: SecretVarId[];
   winnerIndex: Option<BN>;
 }
 
@@ -404,12 +396,14 @@ export enum LotteryStatusD {
   Pending = 1,
   Open = 2,
   Closed = 3,
-  Complete = 4
+  Drawn = 4,
+  Complete = 5
 }
 export type LotteryStatus =
   | LotteryStatusPending
   | LotteryStatusOpen
   | LotteryStatusClosed
+  | LotteryStatusDrawn
   | LotteryStatusComplete;
 
 export interface LotteryStatusPending {
@@ -422,6 +416,10 @@ export interface LotteryStatusOpen {
 
 export interface LotteryStatusClosed {
   discriminant: LotteryStatusD.Closed;
+}
+
+export interface LotteryStatusDrawn {
+  discriminant: LotteryStatusD.Drawn;
 }
 
 export interface LotteryStatusComplete {

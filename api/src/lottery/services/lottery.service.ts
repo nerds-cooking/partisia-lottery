@@ -22,6 +22,7 @@ import { UserService } from 'src/users/services/user.service';
 import { deserializeState } from 'src/utils/LotteryApiGenerated';
 import { CreateLotteryPayload } from '../payloads/CreateLottery.payload';
 import { GetLotteriesPayload } from '../payloads/GetLotteriesPayload';
+import { LotteryEntry } from '../schemas/lottery-entries.schema';
 import { Lottery } from '../schemas/lottery.schema';
 import { OnChainLotteryContractState } from '../types/OnChainLotteryContractState';
 
@@ -30,40 +31,56 @@ export class LotteryService {
   constructor(
     @InjectModel(Lottery.name)
     private readonly lotteryModel: Model<Lottery>,
+    @InjectModel(LotteryEntry.name)
+    private readonly lotteryEntriesModel: Model<LotteryEntry>,
     @Inject(forwardRef(() => UserService))
     private readonly userService: UserService,
     @Inject(forwardRef(() => SettingService))
     private readonly settingService: SettingService,
   ) {}
 
-  async getOnChainState(): Promise<OnChainLotteryContractState> {
+  /**
+   * Helper to fetch contractAddress and partisiaClientUrl from settings
+   */
+  private async getContractSettings() {
     const settings = await this.settingService.findAll();
-
     const contractAddress = settings.find(
       (s) => s.name === 'contractAddress',
     )?.value;
-    if (!contractAddress) {
-      throw new Error('Contract address not found');
-    }
+    if (!contractAddress) throw new Error('Contract address not found');
     const partisiaClientUrl = settings.find(
       (s) => s.name === 'partisiaClientUrl',
     )?.value;
-    if (!partisiaClientUrl) {
-      throw new Error('Partisia client URL not found');
-    }
+    if (!partisiaClientUrl) throw new Error('Partisia client URL not found');
+    return { contractAddress, partisiaClientUrl };
+  }
 
-    const client = new ChainControllerApi(
-      new Configuration({
-        basePath: partisiaClientUrl,
-      }),
+  /**
+   * Helper to create a ChainControllerApi client
+   */
+  private createChainControllerApi(partisiaClientUrl: string) {
+    return new ChainControllerApi(
+      new Configuration({ basePath: partisiaClientUrl }),
     );
+  }
 
-    const contract = await client.getContract({
-      address: contractAddress,
-    });
+  /**
+   * Helper to create a ZK Client
+   */
+  private createZkClient(contractAddress: string, partisiaClientUrl: string) {
+    const client = new Client(partisiaClientUrl);
+    return RealZkClient.create(contractAddress, client);
+  }
+
+  async getOnChainState(): Promise<OnChainLotteryContractState> {
+    const { contractAddress, partisiaClientUrl } =
+      await this.getContractSettings();
+
+    const client = this.createChainControllerApi(partisiaClientUrl);
+
+    const contract = await client.getContract({ address: contractAddress });
 
     const shardId = contract.shardId;
-
     const endpoint = `shards/${shardId}/blockchain/contracts/${contractAddress}`;
 
     const response = await fetch(`${partisiaClientUrl}/${endpoint}`);
@@ -74,7 +91,6 @@ export class LotteryService {
       s.serializedContract.openState.openState.data,
       'base64',
     );
-
     const stateClient = BlockchainStateClientImpl.create(partisiaClientUrl);
 
     const deserialized = deserializeState(
@@ -102,6 +118,7 @@ export class LotteryService {
             deadline: item.value.deadline.toString(10),
             entryCost: item.value.entryCost.toString(10),
             prizePool: item.value.prizePool.toString(10),
+            winner: item.value?.winner?.asString() || null,
           })),
         ),
       lotteryAccounts: await deserialized.lotteryAccounts
@@ -132,26 +149,11 @@ export class LotteryService {
 
     const pk = process.env.API_PRIVATE_KEY || null;
 
-    if (!pk) {
-      throw new Error('API private key not configured');
-    }
+    if (!pk) throw new Error('API private key not configured');
+    const { contractAddress, partisiaClientUrl } =
+      await this.getContractSettings();
 
-    const settings = await this.settingService.findAll();
-    const contractAddress = settings.find(
-      (s) => s.name === 'contractAddress',
-    )?.value;
-    if (!contractAddress) {
-      throw new Error('Contract address not found');
-    }
-    const partisiaClientUrl = settings.find(
-      (s) => s.name === 'partisiaClientUrl',
-    )?.value;
-    if (!partisiaClientUrl) {
-      throw new Error('Partisia client URL not found');
-    }
-
-    const client = new Client(partisiaClientUrl);
-    const zkClient = RealZkClient.create(contractAddress, client);
+    const zkClient = this.createZkClient(contractAddress, partisiaClientUrl);
 
     const owner = CryptoUtils.privateKeyToKeypair(pk);
 
@@ -172,27 +174,12 @@ export class LotteryService {
     const myVarId = await this.getUserVarId(address);
 
     const pk = process.env.API_PRIVATE_KEY || null;
+    if (!pk) throw new Error('API private key not configured');
 
-    if (!pk) {
-      throw new Error('API private key not configured');
-    }
+    const { contractAddress, partisiaClientUrl } =
+      await this.getContractSettings();
 
-    const settings = await this.settingService.findAll();
-    const contractAddress = settings.find(
-      (s) => s.name === 'contractAddress',
-    )?.value;
-    if (!contractAddress) {
-      throw new Error('Contract address not found');
-    }
-    const partisiaClientUrl = settings.find(
-      (s) => s.name === 'partisiaClientUrl',
-    )?.value;
-    if (!partisiaClientUrl) {
-      throw new Error('Partisia client URL not found');
-    }
-
-    const client = new Client(partisiaClientUrl);
-    const zkClient = RealZkClient.create(contractAddress, client);
+    const zkClient = this.createZkClient(contractAddress, partisiaClientUrl);
 
     const owner = CryptoUtils.privateKeyToKeypair(pk);
 
@@ -230,9 +217,14 @@ export class LotteryService {
     return lottery;
   }
 
-  async getLotteryById(
-    lotteryId: string,
-  ): Promise<(Omit<Lottery, 'status'> & { status: number }) | null> {
+  async getLotteryById(lotteryId: string): Promise<
+    | (Omit<Lottery, 'status'> & {
+        status: number;
+        creator: string;
+        winner: string | null;
+      })
+    | null
+  > {
     const onChainState = await this.getOnChainState();
 
     const onChainLottery = onChainState.lotteries.find(
@@ -252,6 +244,9 @@ export class LotteryService {
     return {
       ...lottery,
       status: Number(onChainLottery.status),
+      lotteryId: onChainLottery.lotteryId,
+      creator: onChainLottery.creator,
+      winner: onChainLottery.winner,
     };
   }
 
@@ -274,6 +269,11 @@ export class LotteryService {
           .findOne({ lotteryId: l.lotteryId })
           .lean();
 
+        const participants = await this.lotteryEntriesModel
+          .find({ lotteryId: l.lotteryId })
+          .distinct('userId');
+        const participantCount = participants.length;
+
         if (!lottery) {
           return null;
         }
@@ -282,6 +282,7 @@ export class LotteryService {
           status: Number(l.status),
           lotteryId: l.lotteryId,
           creator: l.creator,
+          participants: participantCount,
         };
       }),
     );
@@ -297,47 +298,26 @@ export class LotteryService {
     const lottery = onChainState.lotteryAccounts.find(
       (l) => l.lotteryId === lotteryId,
     );
-
     if (!lottery) {
       throw new Error(`Lottery with ID ${lotteryId} not found on chain`);
     }
 
-    const pk =
-      '67f96d21e63c26022e8ec361e015058ca0def8ee3fa45415258344dd07b6d9f9';
+    const pk = process.env.API_PRIVATE_KEY || null;
+    if (!pk) throw new Error('API private key not configured');
 
-    const settings = await this.settingService.findAll();
-
-    const contractAddress = settings.find(
-      (s) => s.name === 'contractAddress',
-    )?.value;
-
-    if (!contractAddress) {
-      throw new Error('Contract address not found');
-    }
-    const partisiaClientUrl = settings.find(
-      (s) => s.name === 'partisiaClientUrl',
-    )?.value;
-
-    if (!partisiaClientUrl) {
-      throw new Error('Partisia client URL not found');
-    }
-
+    const { contractAddress, partisiaClientUrl } =
+      await this.getContractSettings();
     try {
-      const client = new Client(partisiaClientUrl);
-      const zkClient = RealZkClient.create(contractAddress, client);
-
+      const zkClient = this.createZkClient(contractAddress, partisiaClientUrl);
       const owner = CryptoUtils.privateKeyToKeypair(pk);
-
       const reconstructedSecret: CompactBitArray =
         await zkClient.fetchSecretVariable(
           new SignatureProviderKeyPair(owner),
           Number(lottery.rawId),
         );
-
       const reconstructedInt = new BitInput(
         reconstructedSecret.data,
       ).readUnsignedBN(128);
-
       return reconstructedInt.toString(10);
     } catch (e: any) {
       console.error('Error fetching lottery account:', e?.message);
@@ -345,5 +325,108 @@ export class LotteryService {
         `Failed to fetch lottery account for ID ${lotteryId}: ${e.message}`,
       );
     }
+  }
+
+  async enterLottery(
+    lotteryId: string,
+    entryTxn: string,
+    entryCost: string,
+    entryCount: number,
+    sessionUser: SessionUser,
+  ): Promise<LotteryEntry> {
+    const user = await this.userService.findByAddress(sessionUser.address);
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    const lotteryEntry = new this.lotteryEntriesModel({
+      lotteryId,
+      userId: user._id,
+      entryTxn,
+      entryCost,
+      entryCount,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    await lotteryEntry.save();
+    return lotteryEntry;
+  }
+
+  async getUserLotteryEntries(
+    address: string,
+    page = 1,
+    limit = 10,
+  ): Promise<{ entries: any[]; total: number }> {
+    const user = await this.userService.findByAddress(address);
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    const skip = (page - 1) * limit;
+    const [entries, total] = await Promise.all([
+      this.lotteryEntriesModel
+        .find({ userId: user._id })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      this.lotteryEntriesModel.countDocuments({ userId: user._id }),
+    ]);
+
+    const mappedEntries = await Promise.all(
+      entries.map(async (entry) => {
+        const lottery = await this.getLotteryById(entry.lotteryId);
+        if (!lottery) {
+          throw new Error(`Lottery with ID ${entry.lotteryId} not found`);
+        }
+        return {
+          createdAt: entry.createdAt,
+          lotteryId: entry.lotteryId,
+          entryTxn: entry.entryTxn,
+          entryCost: entry.entryCost,
+          entryCount: entry.entryCount,
+          lottery: {
+            name: lottery.name,
+            description: lottery.description,
+          },
+        };
+      }),
+    );
+
+    return { entries: mappedEntries, total };
+  }
+
+  async getUserStats(address: string): Promise<{
+    totalTickets: number;
+    totalSpent: string;
+    totalWins: string;
+  }> {
+    const user = await this.userService.findByAddress(address);
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    const entries = await this.lotteryEntriesModel
+      .find({ userId: user._id })
+      .lean();
+
+    return {
+      totalTickets: entries.reduce(
+        (sum, entry) => sum + Number(entry.entryCount),
+        0,
+      ),
+      totalSpent: entries
+        .reduce(
+          (sum, entry) =>
+            sum + Number(entry.entryCost) * Number(entry.entryCount),
+          0,
+        )
+        .toString(10),
+      totalWins: '0',
+    };
   }
 }

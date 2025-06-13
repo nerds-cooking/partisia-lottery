@@ -9,9 +9,9 @@ import { Clock, Shield, Trophy, Users } from 'lucide-react';
 import type React from 'react';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { type Lottery } from '../types';
-import CountdownTimer from './CountdownTimer';
-import { useSettings } from './providers/setting/useSettings';
+import { type Lottery } from '../../types';
+import CountdownTimer from '../CountdownTimer';
+import { useSettings } from '../providers/setting/useSettings';
 
 interface LotteryCardProps {
   lottery: Lottery;
@@ -57,7 +57,12 @@ const LotteryCard: React.FC<LotteryCardProps> = ({ lottery, index = 0 }) => {
           </div>
           <div className='flex items-center space-x-1'>
             <Users className='h-4 w-4' />
-            <span className='text-sm'>{0} participants</span>
+            <span className='text-sm'>
+              {lottery.participants}{' '}
+              {Number(lottery.participants) === 1
+                ? 'participant'
+                : 'participants'}
+            </span>
           </div>
         </div>
       </CardHeader>
@@ -88,7 +93,10 @@ const LotteryCard: React.FC<LotteryCardProps> = ({ lottery, index = 0 }) => {
             </span>
           </div>
           <Button
-            onClick={() => navigate(`/lottery/${lottery.lotteryId}`)}
+            onClick={() => {
+              navigate(`/lottery/${lottery.lotteryId}`);
+              scrollTo(0, 0);
+            }}
             className='bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 button-gradient'
             disabled={lottery.status !== LotteryStatusD.Open}
           >

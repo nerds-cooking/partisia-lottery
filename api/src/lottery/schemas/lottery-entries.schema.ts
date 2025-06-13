@@ -2,7 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
 @Schema()
-export class Lottery extends Document {
+export class LotteryEntry extends Document {
   @Prop()
   createdAt: Date;
 
@@ -10,7 +10,6 @@ export class Lottery extends Document {
   updatedAt: Date;
 
   @Prop({
-    unique: true,
     type: String,
     validate: {
       validator: (value: string) => {
@@ -30,28 +29,16 @@ export class Lottery extends Document {
   lotteryId: string;
 
   @Prop({ type: 'string', ref: 'User' })
-  createdBy: Types.ObjectId;
-
-  @Prop({ required: true })
-  name: string;
-
-  @Prop({ required: true })
-  description: string;
+  userId: Types.ObjectId;
 
   @Prop({ required: true, type: 'string' })
-  prizePool: string;
+  entryTxn: string;
 
   @Prop({ required: true, type: 'string' })
   entryCost: string;
 
-  @Prop({ required: true })
-  deadline: Date;
-
-  @Prop({ required: true, unique: true })
-  creationTxn: string;
-
-  @Prop()
-  finishTxn: string;
+  @Prop({ required: true, type: 'string' })
+  entryCount: string;
 }
 
-export const LotterySchema = SchemaFactory.createForClass(Lottery);
+export const LotteryEntriesSchema = SchemaFactory.createForClass(LotteryEntry);

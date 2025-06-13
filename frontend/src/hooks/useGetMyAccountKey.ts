@@ -1,6 +1,5 @@
 import axiosInstance from '@/lib/axios';
 import { useCallback, useEffect, useState } from 'react';
-import { toast } from 'sonner';
 
 export function useGetMyAccountKey() {
   const [accountKey, setAccountKey] = useState<string>('');
@@ -15,10 +14,11 @@ export function useGetMyAccountKey() {
       if (resp.status !== 200) {
         throw new Error('Failed to get account key');
       }
+
       setAccountKey(resp.data.accountKey);
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (err: unknown) {
-      toast.error('Failed to get account key');
-      setError((err as Error)?.message || 'Failed to get account key');
+      // Handle error
     } finally {
       setLoading(false);
     }

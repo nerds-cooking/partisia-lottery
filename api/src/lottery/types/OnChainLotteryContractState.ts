@@ -9,6 +9,7 @@ export interface OnChainLotteryContractState {
     deadline: string;
     entryCost: string;
     prizePool: string;
+    winner: string | null;
   }[];
   lotteryAccounts: {
     lotteryId: string;

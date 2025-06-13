@@ -1,8 +1,8 @@
 import axiosInstance from '@/lib/axios';
 import { LotteryStatusD } from '@/lib/LotteryApiGenerated';
+import { Lottery } from '@/types';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Lottery } from './useLottery';
 
 export function useLotteries(
   initialPage = 1,

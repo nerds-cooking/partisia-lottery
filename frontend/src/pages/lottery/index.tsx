@@ -1,12 +1,23 @@
 import CountdownTimer from '@/components/CountdownTimer';
+import { CreateAccountForm } from '@/components/CreateAccountForm';
+import DrawLotteryForm from '@/components/DrawLotteryForm';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import MPCExplanation from '@/components/MPCExplanation';
+import { useAuth } from '@/components/providers/auth/useAuth';
 import { useLottery } from '@/components/providers/lottery/useLottery';
+import { usePartisia } from '@/components/providers/partisia/usePartisia';
 import { useSettings } from '@/components/providers/setting/useSettings';
 import PurchaseTicket from '@/components/PurchaseTicket';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog';
+import { useHasAccountOnChain } from '@/hooks/useHasAccountOnChain';
 import { LotteryStatusD } from '@/lib/LotteryApiGenerated';
 import { getStatusColor, getStatusText } from '@/utils/status';
 import {
@@ -19,13 +30,16 @@ import {
   Trophy,
   Users
 } from 'lucide-react';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 export function LotteryViewPage() {
+  const { user, isAuthenticated } = useAuth();
+  const { hasAccount } = useHasAccountOnChain(30000);
   const navigate = useNavigate();
   const { settings } = useSettings();
   const { lotteryId } = useParams<{ lotteryId: string }>();
+  const { isConnected } = usePartisia();
 
   const tokenSymbol = useMemo(
     () =>
@@ -37,6 +51,17 @@ export function LotteryViewPage() {
   const { lottery, loading, error, refreshLottery } = useLottery(
     lotteryId || '0'
   );
+
+  const isCreator = useMemo(() => {
+    return user?.id && lottery?.createdBy === user.id;
+  }, [user, lottery]);
+
+  const isDeadlinePassed = useMemo(() => {
+    if (!lottery?.deadline) return false;
+    return new Date() > new Date(lottery.deadline);
+  }, [lottery]);
+
+  const [showCreateAccount, setShowCreateAccount] = useState(false);
 
   if (loading) {
     return (
@@ -143,7 +168,12 @@ export function LotteryViewPage() {
                     <Users className='h-5 w-5 text-blue-400' />
                     <div>
                       <p className='text-white/60 text-sm'>Participants</p>
-                      <p className='text-white font-semibold'>{0}</p>
+                      <p className='text-white font-semibold'>
+                        {lottery.participants}{' '}
+                        {Number(lottery.participants) === 1
+                          ? 'participant'
+                          : 'participants'}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -187,31 +217,127 @@ export function LotteryViewPage() {
         </div>
 
         <div className='space-y-6'>
-          {lottery.status === LotteryStatusD.Open && (
+          {lottery.status === LotteryStatusD.Pending ? (
+            <Card className='bg-white/10 backdrop-blur-md border-white/20'>
+              <CardContent className='p-6 text-center'>
+                <p className='text-white/80 mb-4'>
+                  This lottery is pending and not yet open for ticket sales.
+                </p>
+              </CardContent>
+            </Card>
+          ) : lottery.status === LotteryStatusD.Open &&
+            isDeadlinePassed &&
+            isCreator ? (
+            <DrawLotteryForm lottery={lottery} refresh={refreshLottery} />
+          ) : lottery.status === LotteryStatusD.Open &&
+            !isDeadlinePassed &&
+            isConnected &&
+            isAuthenticated &&
+            hasAccount ? (
             <PurchaseTicket lottery={lottery} />
-          )}
-
-          <Card className='bg-white/10 backdrop-blur-md border-white/20'>
-            <CardHeader>
-              <CardTitle className='text-white text-lg'>Quick Stats</CardTitle>
-            </CardHeader>
-            <CardContent className='space-y-3'>
-              <div className='flex justify-between'>
-                <span className='text-white/60'>Total Tickets Sold</span>
-                <span className='text-white font-semibold'>{0 * 2}</span>
-              </div>
-              <div className='flex justify-between'>
-                <span className='text-white/60'>Odds of Winning</span>
-                <span className='text-white font-semibold'>1 in {0 * 2}</span>
-              </div>
-              <div className='flex justify-between'>
-                <span className='text-white/60'>Entry Fee</span>
-                <span className='text-white font-semibold'>
-                  {lottery.entryCost} {tokenSymbol}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
+          ) : lottery.status === LotteryStatusD.Open && !isConnected ? (
+            <Card className='bg-white/10 backdrop-blur-md border-white/20'>
+              <CardContent className='p-6 text-center'>
+                <p className='text-white/80 mb-4'>
+                  Connect your wallet to purchase tickets
+                </p>
+                <Button disabled className='bg-gray-500'>
+                  Connect Wallet Required
+                </Button>
+              </CardContent>
+            </Card>
+          ) : lottery.status === LotteryStatusD.Open &&
+            !isDeadlinePassed &&
+            !isAuthenticated ? (
+            <Card className='bg-white/10 backdrop-blur-md border-white/20'>
+              <CardContent className='p-6 text-center'>
+                <p className='text-white/80 mb-4'>
+                  Please sign in to purchase tickets
+                </p>
+                <Button disabled className='bg-gray-500'>
+                  Sign In Required
+                </Button>
+              </CardContent>
+            </Card>
+          ) : lottery.status === LotteryStatusD.Open &&
+            !isDeadlinePassed &&
+            isConnected &&
+            isAuthenticated &&
+            !hasAccount ? (
+            <>
+              <Card className='bg-white/10 backdrop-blur-md border-white/20'>
+                <CardContent className='p-6 text-center'>
+                  <p className='text-white/80 mb-4'>
+                    You need to create an on-chain account to purchase tickets.
+                  </p>
+                  <Button
+                    className='bg-blue-500'
+                    onClick={() => setShowCreateAccount(true)}
+                  >
+                    Create On-chain Account
+                  </Button>
+                </CardContent>
+              </Card>
+              <Dialog
+                open={showCreateAccount}
+                onOpenChange={setShowCreateAccount}
+              >
+                <DialogContent className='max-w-md w-full'>
+                  <DialogHeader>
+                    <DialogTitle />
+                  </DialogHeader>
+                  <CreateAccountForm
+                    onSuccess={() => setShowCreateAccount(false)}
+                  />
+                </DialogContent>
+              </Dialog>
+            </>
+          ) : lottery.status === LotteryStatusD.Closed ? (
+            <Card className='bg-white/10 backdrop-blur-md border-white/20'>
+              <CardContent className='p-6 text-center'>
+                <p className='text-white/80 mb-4'>
+                  Ticket sales are closed. The draw is being processed. Please
+                  wait for the result.
+                </p>
+              </CardContent>
+            </Card>
+          ) : lottery.status === LotteryStatusD.Complete ? (
+            lottery.winner &&
+            user?.address &&
+            lottery.winner.toLowerCase() === user.address.toLowerCase() ? (
+              <Card className='bg-white/10 backdrop-blur-md border-white/20 animate-fade-in'>
+                <CardContent className='p-6 text-center'>
+                  <div className='flex flex-col items-center space-y-3'>
+                    <Sparkles className='h-10 w-10 text-yellow-400 animate-bounce' />
+                    <p className='text-white/90 text-xl font-bold'>
+                      🎉 Congratulations! You are the winner! 🎉
+                    </p>
+                    <p className='text-white/80 text-lg break-all'>
+                      Your address:{' '}
+                      <span className='font-mono'>{lottery.winner}</span>
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className='bg-white/10 backdrop-blur-md border-white/20 animate-fade-in'>
+                <CardContent className='p-6 text-center'>
+                  <div className='flex flex-col items-center space-y-3'>
+                    <Sparkles className='h-8 w-8 text-yellow-400 animate-pulse' />
+                    <p className='text-white/80 mb-2 text-lg font-semibold'>
+                      The draw has been completed!
+                    </p>
+                    <p className='text-white/60'>
+                      Winner address:
+                      <span className='block font-mono text-white mt-1 break-all'>
+                        {lottery.winner || 'Not available'}
+                      </span>
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          ) : null}
         </div>
       </div>
     </div>

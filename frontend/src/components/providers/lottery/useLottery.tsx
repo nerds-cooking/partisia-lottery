@@ -1,21 +1,7 @@
 import axiosInstance from '@/lib/axios';
-import { LotteryStatus } from '@/types';
+import { Lottery } from '@/types';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-
-export interface Lottery {
-  createdAt: string;
-  updatedAt: string;
-  _id: string;
-  lotteryId: string;
-  name: string;
-  description: string;
-  status: LotteryStatus;
-  deadline: string;
-  entryCost: string;
-  prizePool: string;
-  creationTxn: string;
-}
 
 export function useLottery(lotteryId: string) {
   const [lottery, setLottery] = useState<Lottery | null>(null);

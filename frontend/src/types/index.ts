@@ -5,6 +5,7 @@ export interface Lottery {
   updatedAt: string;
   _id: string;
   lotteryId: string;
+  createdBy: string;
   name: string;
   description: string;
   status: LotteryStatusD;
@@ -12,4 +13,6 @@ export interface Lottery {
   entryCost: string;
   prizePool: string;
   creationTxn: string;
+  participants: string;
+  winner: string | null;
 }

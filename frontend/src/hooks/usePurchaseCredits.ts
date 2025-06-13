@@ -76,8 +76,6 @@ export function usePurchaseCredits() {
           setStatus('🔄 Approving token transfer');
           const testTokenApi = new TestTokenApi(
             transactionClient,
-            RealZkClient.create(tokenContractAddress, client),
-            BlockchainAddress.fromString(currentAccount!.address),
             tokenContractAddress
           );
           const approveAmount = new BN(purchaseCreditsAmount);

@@ -8,8 +8,10 @@ import {
 import { BN } from '@partisiablockchain/abi-client';
 import { RealZkClient } from '@partisiablockchain/zk-client';
 import {
+  claim,
   createAccount,
   createLottery,
+  drawWinner,
   purchaseCredits,
   purchaseTickets,
   redeemCredits
@@ -162,6 +164,42 @@ export class LotteryApi {
       secretInput.secretInput,
       secretInput.publicRpc
     );
+
+    const txn = await this.transactionClient.signAndSend(transaction, 500_000);
+
+    await this.transactionClient.waitForInclusionInBlock(txn);
+
+    return txn;
+  }
+
+  public async drawLottery(lotteryId: BN): Promise<SentTransaction> {
+    if (this.transactionClient === undefined) {
+      throw new Error('No account logged in');
+    }
+
+    const drawLotteryTxn = drawWinner(lotteryId);
+    const transaction: Transaction = {
+      address: this.contractAddress,
+      rpc: drawLotteryTxn
+    };
+
+    const txn = await this.transactionClient.signAndSend(transaction, 500_000);
+
+    await this.transactionClient.waitForInclusionInBlock(txn);
+
+    return txn;
+  }
+
+  public async claim(lotteryId: BN): Promise<SentTransaction> {
+    if (this.transactionClient === undefined) {
+      throw new Error('No account logged in');
+    }
+
+    const claimPrizeTxn = claim(lotteryId);
+    const transaction: Transaction = {
+      address: this.contractAddress,
+      rpc: claimPrizeTxn
+    };
 
     const txn = await this.transactionClient.signAndSend(transaction, 500_000);
 

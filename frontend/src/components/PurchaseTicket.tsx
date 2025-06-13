@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useEnterLottery } from '@/hooks/useEnterLottery';
 import { usePurchaseTickets } from '@/hooks/usePurchaseTickets';
 import { LotteryStatusD } from '@/lib/LotteryApiGenerated';
 import { Check, Lock, Shield, Ticket } from 'lucide-react';
@@ -24,12 +25,21 @@ const PurchaseTicket: React.FC<PurchaseTicketProps> = ({ lottery }) => {
   const [ticketCount, setTicketCount] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [purchaseSuccess, setPurchaseSuccess] = useState(false);
+  const [entryTxn, setEntryTxn] = useState<string>('');
   const purchaseTickets = usePurchaseTickets(lottery.lotteryId);
+  const { enterLottery } = useEnterLottery();
 
   const totalCost = ticketCount * Number(lottery.entryCost);
 
   const tokenSymbol =
     settings?.find((s) => s.name === 'tokenSymbol')?.value || 'MPC';
+
+  const explorerUrl =
+    settings?.find((s) => s.name === 'explorerUrl')?.value || '';
+
+  if (!explorerUrl) {
+    console.error('Explorer URL not found in settings');
+  }
 
   const handlePurchase = async () => {
     if (!isConnected) return;
@@ -43,16 +53,24 @@ const PurchaseTicket: React.FC<PurchaseTicketProps> = ({ lottery }) => {
         ticketCount
       });
 
-      console.log('Purchase transaction:', txn);
+      const entryTxnStr = typeof txn === 'string' ? txn : '';
+      setEntryTxn(entryTxnStr);
+
+      await enterLottery({
+        lotteryId: lottery.lotteryId,
+        entryTxn: entryTxnStr,
+        entryCost: lottery.entryCost,
+        entryCount: ticketCount.toString()
+      });
 
       setPurchaseSuccess(true);
 
       setTimeout(() => {
         setTicketCount(1);
         setPurchaseSuccess(false);
-      }, 3000);
+      }, 5000);
     } catch (error) {
-      console.error('Purchase failed:', error);
+      console.error('Purchase or entry failed:', error);
     } finally {
       setIsLoading(false);
     }
@@ -72,48 +90,6 @@ const PurchaseTicket: React.FC<PurchaseTicketProps> = ({ lottery }) => {
       </Card>
     );
   }
-
-  // if (isLotteryAccountLoading || isUserAccountLoading) {
-  //   return (
-  //     <Card className='bg-white/10 backdrop-blur-md border-white/20 animate-fade-in'>
-  //       <CardHeader>
-  //         <CardTitle className='text-white flex items-center space-x-2'>
-  //           <div className='h-5 w-5 bg-gray-700 rounded-full animate-pulse' />
-  //           <div className='h-6 bg-gray-700 rounded w-40 animate-pulse' />
-  //         </CardTitle>
-  //       </CardHeader>
-  //       <CardContent className='space-y-4'>
-  //         <div className='bg-blue-500/20 border-blue-500/30 rounded p-3 flex items-center space-x-2 animate-pulse'>
-  //           <div className='h-4 w-4 bg-blue-400 rounded-full' />
-  //           <div className='h-4 bg-blue-400 rounded w-3/4' />
-  //         </div>
-  //         <div className='space-y-2'>
-  //           <div className='h-4 bg-gray-600 rounded w-32' />
-  //           <div className='h-10 bg-gray-700 rounded w-full' />
-  //         </div>
-  //         <div className='bg-white/5 rounded-lg p-4 space-y-2'>
-  //           <div className='flex justify-between'>
-  //             <div className='h-4 bg-gray-600 rounded w-24' />
-  //             <div className='h-4 bg-gray-600 rounded w-16' />
-  //           </div>
-  //           <div className='flex justify-between'>
-  //             <div className='h-4 bg-gray-600 rounded w-20' />
-  //             <div className='h-4 bg-gray-600 rounded w-8' />
-  //           </div>
-  //           <div className='border-t border-white/20 pt-2 flex justify-between'>
-  //             <div className='h-4 bg-gray-700 rounded w-20' />
-  //             <div className='h-4 bg-gray-700 rounded w-16 animate-pulse-slow' />
-  //           </div>
-  //         </div>
-  //         <div className='flex items-center space-x-2 text-white/60 text-sm'>
-  //           <div className='h-4 w-4 bg-gray-600 rounded-full' />
-  //           <div className='h-4 bg-gray-600 rounded w-32' />
-  //         </div>
-  //         <div className='h-10 bg-gradient-to-r from-purple-500 to-blue-500 rounded w-full animate-pulse' />
-  //       </CardContent>
-  //     </Card>
-  //   );
-  // }
 
   return (
     <Card
@@ -137,6 +113,30 @@ const PurchaseTicket: React.FC<PurchaseTicketProps> = ({ lottery }) => {
               You've successfully purchased {ticketCount} ticket
               {ticketCount > 1 ? 's' : ''}!
             </p>
+            {entryTxn && (
+              <div className='flex flex-col items-center space-y-2'>
+                <p className='text-white/80 text-sm'>
+                  Transaction ID:{' '}
+                  <span className='font-mono'>
+                    {entryTxn.slice(0, 6)}...{entryTxn.slice(-6)}
+                  </span>
+                </p>
+                <Button
+                  size='sm'
+                  variant='outline'
+                  className='text-xs'
+                  onClick={() =>
+                    window.open(
+                      `${explorerUrl.replace(/\/$/, '')}/transactions/${entryTxn}`,
+                      '_blank',
+                      'noopener,noreferrer'
+                    )
+                  }
+                >
+                  View on Explorer
+                </Button>
+              </div>
+            )}
             <p className='text-white/60 text-sm'>
               Your tickets are now securely stored and privacy-protected by MPC
               technology.

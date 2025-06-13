@@ -1,9 +1,8 @@
+import LotteryCard from '@/components/cards/LotteryCard';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import LotteryCard from '@/components/LotteryCard';
 import MPCExplanation from '@/components/MPCExplanation';
 import { PaginationControls } from '@/components/Pagination';
 import { useLotteries } from '@/components/providers/lottery/useLotteries';
-import { Button } from '@/components/ui/button';
 import { LotteryStatusD } from '@/lib/LotteryApiGenerated';
 import { Eye, Shield, Zap } from 'lucide-react';
 import { useEffect, useRef } from 'react';
@@ -54,7 +53,7 @@ export function HomePage() {
           </div>
         </div>
 
-        <div className='flex flex-col sm:flex-row gap-4 justify-center animate-fade-in stagger-3'>
+        {/* <div className='flex flex-col sm:flex-row gap-4 justify-center animate-fade-in stagger-3'>
           <Button
             size='lg'
             variant='outline'
@@ -62,7 +61,7 @@ export function HomePage() {
           >
             Learn More
           </Button>
-        </div>
+        </div> */}
       </section>
 
       <section className='space-y-6'>
@@ -83,15 +82,15 @@ export function HomePage() {
           <div className='text-center py-12 animate-fade-in'>
             <p className='text-red-400 mb-4'>Error: {error}</p>
           </div>
-        ) : lotteries.length > 0 ? (
+        ) : lotteries?.length > 0 ? (
           <>
             <div
               ref={listRef}
               className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in'
             >
-              {lotteries.map((lottery, index) => (
+              {lotteries?.map((lottery, index) => (
                 <LotteryCard
-                  key={lottery._id}
+                  key={lottery.lotteryId}
                   lottery={lottery}
                   index={index}
                 />

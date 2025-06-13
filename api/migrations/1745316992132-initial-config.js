@@ -23,6 +23,7 @@ module.exports.up = function (next) {
         { name: 'tokenName', value: 'Test Token' },
         { name: 'tokenSymbol', value: 'TT' },
         { name: 'tokenDecimals', value: '8' },
+        { name: 'explorerUrl', value: 'https://browser.testnet.partisiablockchain.com' },
       ],
       { ordered: false }
     )

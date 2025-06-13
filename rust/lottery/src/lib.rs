@@ -702,10 +702,10 @@ impl ContractState {
         self.lotteries.insert(lottery_id, lottery);
     }
 
-    pub fn mark_lottery_as_closed(&mut self, lottery_id: LotteryId) {
+    pub fn mark_lottery_as_complete(&mut self, lottery_id: LotteryId) {
         let mut lottery = self.get_lottery(&lottery_id).unwrap().clone();
 
-        lottery.status = LotteryStatus::Closed {};
+        lottery.status = LotteryStatus::Complete {};
 
         self.lotteries.insert(lottery_id, lottery);
     }
@@ -1583,7 +1583,7 @@ pub fn claim_complete(
     state.transfer_variables_to_owner(&zk_state, output_variables, &mut zk_state_change);
     state.clean_up_redundant_secret_variables(&mut zk_state_change);
 
-    state.mark_lottery_as_closed(lottery_id);
+    state.mark_lottery_as_complete(lottery_id);
 
     trigger_continue_queue_if_needed(context, &state, &mut event_groups);
 

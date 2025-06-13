@@ -90,21 +90,21 @@ pub struct ComputationResultPub {
 #[derive(Debug, Clone, Copy, CreateTypeSpec, SecretBinary)]
 pub struct DrawResult {
     lottery_id: AccountKey,
-    /// Whether the computation was successful.
-    successful: Sbu1,
     /// The winner's account key, if the draw was successful.
     /// If the draw was not successful, this will be `0`.
-    winner_id: AccountKey
+    winner_id: AccountKey,
+    /// Whether the computation was successful.
+    successful: Sbu1,
 }
 
 #[derive(Debug, Clone, Copy, CreateTypeSpec, SecretBinary)]
 pub struct DrawResultPub {
     pub lottery_id: u128,
-    /// Whether the computation was successful.
-    pub successful: bool,
     /// The winner's account key, if the draw was successful.
     /// If the draw was not successful, this will be `0`.
     pub winner_id: u128,
+    /// Whether the computation was successful.
+    pub successful: bool,
 }
 
 #[derive(Debug, Clone, Copy, CreateTypeSpec, SecretBinary)]
@@ -376,7 +376,8 @@ pub fn draw_lottery_winner(
     lottery_balance_id: SecretVarId,
     creator_balance_id: SecretVarId,
     entry_cost: u128,
-    prize_pool: u128
+    prize_pool: u128,
+    winner_index: u128
 ) -> (AccountBalance, AccountBalance, DrawResult) {
     let mut lottery_state: SecretLotteryState = load_sbi::<SecretLotteryState>(secret_lottery_state_id);
     let mut lottery_balance: AccountBalance = load_sbi::<AccountBalance>(lottery_balance_id);
@@ -385,33 +386,24 @@ pub fn draw_lottery_winner(
     let total_tickets = lottery_state.tickets;
     let mut winner_id = Sbu128::from(0);
     let lottery_account_key = lottery_balance.account_key;
-
-    // Calculate winner index
-    let winner_index = if total_tickets > Sbu128::from(0) {
-        (lottery_state.entropy & total_tickets) - Sbu128::from(1)
-    } else {
-        Sbu128::from(0)
-    };
         
     // Iterate over the entries until we find the winner
     let mut cidx = Sbu128::from(0); // Current index in the entries
+    let sbu_winner_index = Sbu128::from(winner_index);
 
-    let mut matches = Sbu128::from(0);
     for variable_id in secret_variable_ids() {
         let kind = load_metadata::<u8>(variable_id);
 
         if kind == VARIABLE_KIND_DISCRIMINANT_LOTTERY_TICKET_PURCHASE {
             let ticket: LotteryTicketPurchaseSecret = load_sbi::<LotteryTicketPurchaseSecret>(variable_id);
 
-            matches = matches + Sbu128::from(1); // ! Debug
             // Found a lottery ticket
-            if winner_index >= cidx && winner_index < cidx + ticket.tickets {
+            if sbu_winner_index >= cidx && sbu_winner_index < cidx + ticket.tickets {
                 // Found the winner
                 winner_id = ticket.purchaser_account_key;
 
                 let remainder_balance = 
-                    Sbu128::from(prize_pool) - lottery_balance.balance - 
-                    (lottery_state.tickets * Sbu128::from(entry_cost));
+                    lottery_balance.balance - Sbu128::from(prize_pool);
 
                 if !is_negative(remainder_balance) {
                     // Move the remainder to the creator's balance
@@ -434,9 +426,33 @@ pub fn draw_lottery_winner(
         creator_balance,
         DrawResult {
             lottery_id: lottery_account_key,
-            successful: winner_id != Sbu128::from(0),
-            winner_id: matches // !debug
+            winner_id,
+            successful: winner_id != Sbu128::from(0)
         }
+    )
+}
+
+/// Claims the winnings for the winner of the lottery.
+/// Returns:
+/// 0: AccountBalance -> Updated winner balance
+/// 1: AccountBalance -> Updated lottery balance
+#[zk_compute(shortname = 0x76)]
+pub fn claim_winnings(
+    lottery_balance_id: SecretVarId,
+    winner_balance_id: SecretVarId
+) -> (AccountBalance, AccountBalance) {
+    let mut lottery_balance: AccountBalance = load_sbi::<AccountBalance>(lottery_balance_id);
+    let mut winner_balance: AccountBalance = load_sbi::<AccountBalance>(winner_balance_id);
+    
+    // Update the winner balance
+    winner_balance.balance = winner_balance.balance + lottery_balance.balance;
+
+    // Reset the lottery balance to zero
+    lottery_balance.balance = Sbu128::from(0);
+    
+    (
+        winner_balance,
+        lottery_balance
     )
 }
 

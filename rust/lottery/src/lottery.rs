@@ -42,8 +42,8 @@ pub struct LotteryState {
     // so not to overwrite valid state when errors occur
     pub pending_secret_state_id: Option<SecretVarId>,
 
-    // pub entries: Vec<Entry>, // ! contains address
     pub entries_svars: Vec<SecretVarId>,
-    // pub winner_svar_id: Option<SecretVarId>,
+
+    pub winner_index: Option<u128>
 }
 

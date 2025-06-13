@@ -6,10 +6,11 @@ A decentralized lottery platform built on the Partisia Blockchain, leveraging Mu
 
 This project demonstrates how MPC technology can be applied to create a fully private, transparent, and fair lottery system where:
 
-- Participant identities remain hidden
-- Entry counts and ticket purchases are kept private
+- Participant identities remain hidden (to a degree)
+- Lottery operations are secure and tamper-proof
+- Entry ticket counts are kept private
 - Winner selection is verifiably random and cannot be manipulated
-- Users maintain complete privacy of their financial transactions
+- Users maintain complete ownership of their tokens
 
 ## Components
 
@@ -20,7 +21,6 @@ The core of the system is a Rust-based smart contract designed for the Partisia 
 - **MPC-Based Privacy**: Uses advanced multi-party computation for privacy-preserving operations
 - **Stateful Lottery Management**: Tracks lottery lifecycle from creation through winner selection
 - **Token Integration**: Works with MPC20 tokens for payments and prize distribution
-- **Zero-Knowledge Proofs**: Implements ZK proofs for validating transactions without revealing data
 
 #### Development and Deployment
 
@@ -57,8 +57,7 @@ The backend API serves as the bridge between the frontend application and the bl
 The user interface provides an intuitive experience for interacting with the lottery system:
 
 - Modern React-based interface with responsive design
-- Real-time lottery updates and notifications
-- Secure wallet integration for transactions
+- Parti wallet integration for transactions
 - Visualization of lottery statistics and history
 
 ### User Flows
@@ -72,9 +71,9 @@ The Partisia Lottery system is designed to provide a secure, private, and fair l
 This flow represents the initial onboarding process:
 
 - Users create a private account secured by MPC to maintain privacy
-- During account creation, a secret key is generated and split securely across the MPC network
+- During account creation, a secret balance is generated and split securely across the MPC network
 - This account links the user's public address with their private balance information
-- No one (not even the contract owner) can see the user's balance or transaction details
+- ~~No one (not even the contract owner) can see the user's balance or transaction details~~ Due to a limitation in Parti wallet, this is currently not possible. We've had to work around this by using an API key that is able to read balances. Once Parti wallet supports reading secrets effectively, this can be enabled. Logic has been tested and implemented for this, just not enabled in the current version.
 - Account creation requires a one-time setup but ensures all future interactions preserve privacy
 
 #### Purchase Credits
@@ -87,7 +86,7 @@ Users need credits to participate in lottery activities:
 - Funds are transferred from user's wallet to the lottery contract
 - The contract creates a private credit balance for the user
 - All balance updates occur under MPC protection, keeping user activity confidential
-- Credit purchases are recorded privately, visible only to the user
+- Although the user's balance is private, because we're taking funds from an MPC20 contract there is a public record of how many tokens were transferred. Privacy around balances is more focused on limiting the visibility of how many lottery tickets a user has purchased.
 
 #### Redeem Credits
 
@@ -122,7 +121,7 @@ Participants can enter any open lottery:
 
 - Users select an open lottery and purchase tickets using their credits
 - The ticket purchase is processed privately using MPC
-- Neither other participants nor the lottery creator can see who has entered
+- Neither other participants nor the lottery creator can how many tickets a user has purchased
 - Entry records are stored as private variables in the contract
 - The prize pool updates with each entry, while maintaining privacy of individual participants
 
@@ -132,11 +131,13 @@ Participants can enter any open lottery:
 
 When a lottery closes, a winner is selected:
 
-- The lottery automatically closes when the deadline is reached
+- The lottery will not allow drawing a winner until the deadline has passed. Once the deadline has passed, the creator can initiate the draw.
 - A secure random selection process runs within the MPC environment
 - Winner selection combines entropy from multiple sources to ensure fairness
+  - Due to MPC limitations, the draw requires the entropy to be published so a modulus operation can be performed on the public chain. Doing so on the MPC nodes is not possible due to the ZK Circuit loop limitations and gas concerns blocking these kinds of heavy operations from occurring.
 - The MPC protocol reveals only the winning entry, not the full participant list
 - The lottery status updates to "Drawn" with the winner address recorded
+- All credits (excluding the pool itself) are sent to the creator's account at this point, and enables the ability for the winner to claim their winnings.
 
 #### Claim Winnings
 
@@ -144,7 +145,6 @@ When a lottery closes, a winner is selected:
 
 The winner can claim their prize:
 
-- Only the selected winner can initiate the claim process
 - MPC protocol verifies the winner's identity without revealing other entries
 - Upon successful verification, the prize pool is transferred to the winner
 - The private credit balance of the winner is updated accordingly
@@ -155,8 +155,8 @@ The winner can claim their prize:
 
 Our lottery implementation leverages Partisia Blockchain's MPC capabilities to ensure:
 
-1. **Complete Participant Privacy**: No one can see who has entered a lottery
-2. **Fair Winner Selection**: Random selection that cannot be manipulated
+1. **Participant Privacy**: No one can see how many tickets a user has purchased. Unfortunately, due to the state changes that occur when purchasing it is able to be inferred which lottery a user has entered, but not how many tickets they have purchased.
+2. **Fair Winner Selection**: Random selection that cannot be manipulated. Entropy is gathered from the lottery creator and all participants secretly, ensuring that the winner is chosen fairly and transparently.
 3. **Secure Balance Management**: User credit balances remain private
 4. **Tamper-Proof Operations**: All contract operations are secured by blockchain consensus
 5. **Transaction Confidentiality**: Financial details remain private throughout the process
@@ -168,7 +168,7 @@ Our lottery implementation leverages Partisia Blockchain's MPC capabilities to e
 The lottery contract consists of several key components:
 
 - **LotteryState**: Central data structure tracking lottery instances and their statuses
-- **ZK Computation Engine**: Handles private computations for ticket purchases and winner selection
+- **ZK Computation Engine**: Handles private computations for credit and ticket purchases and winner selection
 - **MPC20 Integration**: Interfaces with token contracts for financial operations
 - **State Transitions**: Manages the lottery lifecycle through well-defined states (Pending → Open → Closed → Drawn → Complete)
 
@@ -177,16 +177,15 @@ The lottery contract consists of several key components:
 This implementation uses several advanced cryptographic techniques:
 
 - **Multi-Party Computation (MPC)**: Allows computations on encrypted data without revealing the data itself
-- **Zero-Knowledge Proofs**: Enables verification without exposing sensitive information
-- **Secret State Management**: Maintains confidential contract state that even validators cannot see
-- **Secure Random Number Generation**: Combines on-chain entropy with user inputs for unbiasable randomness
+- **Secret State Management**: Maintains confidential contract state that even node operators cannot see
+- **Secure Random Number Generation**: A combination of entropy sources ensures randomness in winner selection. All individual entries would need to be known in order to manipulate the outcome, which is not possible due to the privacy-preserving nature of the MPC.
 
 ## Getting Started
 
 ### Prerequisites
 
 - Node.js 16+ and Yarn
-- Rust toolchain with wasm32-unknown-unknown target
+- Rust toolchain with Partisia WASM target
 - Partisia Contract SDK
 - Docker and Docker Compose (for local development)
 
@@ -225,11 +224,3 @@ yarn dev
 ```
 
 Visit `http://localhost:5173` to access the application.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.

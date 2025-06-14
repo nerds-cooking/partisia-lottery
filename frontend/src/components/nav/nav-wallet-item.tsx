@@ -66,8 +66,6 @@ export function NavWalletItem() {
                     className='flex flex-col gap-4'
                     onSubmit={(e) => {
                       e.stopPropagation();
-
-                      alert('Setting username...');
                       e.preventDefault();
 
                       setUsername(usernameInput.trim()).then(() => {

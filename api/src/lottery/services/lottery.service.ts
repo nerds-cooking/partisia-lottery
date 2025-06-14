@@ -223,6 +223,7 @@ export class LotteryService {
         creator: string;
         participants: string;
         winner: string | null;
+        winnerUsername: string | null;
       })
     | null
   > {
@@ -242,6 +243,13 @@ export class LotteryService {
       throw new Error(`Lottery with ID ${lotteryId} not found in database`);
     }
 
+    let user: any = null;
+    if (onChainLottery.winner) {
+      user = await this.userService.findByAddress(onChainLottery.winner);
+    } else {
+      user = null;
+    }
+
     const participants = await this.lotteryEntriesModel
       .find({ lotteryId })
       .distinct('userId');
@@ -253,6 +261,7 @@ export class LotteryService {
       lotteryId: onChainLottery.lotteryId,
       creator: onChainLottery.creator,
       winner: onChainLottery.winner,
+      winnerUsername: user ? user.username : null,
       participants: participantCount.toString(),
     };
   }
@@ -280,6 +289,12 @@ export class LotteryService {
           .find({ lotteryId: l.lotteryId })
           .distinct('userId');
         const participantCount = participants.length;
+        let user: any = null;
+        if (l.winner) {
+          user = await this.userService.findByAddress(l.winner);
+        } else {
+          user = null;
+        }
 
         if (!lottery) {
           return null;
@@ -290,6 +305,7 @@ export class LotteryService {
           lotteryId: l.lotteryId,
           creator: l.creator,
           winner: l.winner,
+          winnerUsername: user ? user.username : null,
           participants: participantCount,
         };
       }),

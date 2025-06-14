@@ -84,7 +84,9 @@ const LotteryCard: React.FC<LotteryCardProps> = ({ lottery, index = 0 }) => {
           <div className='flex items-center space-x-2 text-xs font-mono text-white/80 break-all'>
             <Trophy className='h-4 w-4 text-yellow-400' />
             <span className='text-green-400 font-semibold'>Winner:</span>
-            <span>{lottery.winner}</span>
+            <span>
+              {lottery.winnerUsername ? lottery.winnerUsername : lottery.winner}
+            </span>
           </div>
         )}
 

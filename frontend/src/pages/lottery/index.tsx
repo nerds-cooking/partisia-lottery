@@ -328,9 +328,11 @@ export function LotteryViewPage() {
                       The draw has been completed!
                     </p>
                     <p className='text-white/60'>
-                      Winner address:
+                      Winner:
                       <span className='block font-mono text-white mt-1 break-all'>
-                        {lottery.winner || 'Not available'}
+                        {lottery.winnerUsername
+                          ? lottery.winnerUsername
+                          : lottery.winner || 'Not available'}
                       </span>
                     </p>
                   </div>

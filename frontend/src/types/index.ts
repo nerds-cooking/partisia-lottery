@@ -15,4 +15,5 @@ export interface Lottery {
   creationTxn: string;
   participants: string;
   winner: string | null;
+  winnerUsername: string | null;
 }

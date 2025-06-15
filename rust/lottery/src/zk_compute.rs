@@ -391,27 +391,40 @@ pub fn draw_lottery_winner(
             let ticket: LotteryTicketPurchaseSecret =
                 load_sbi::<LotteryTicketPurchaseSecret>(variable_id);
 
-            // Found a lottery ticket
-            if sbu_winner_index >= cidx && sbu_winner_index < cidx + ticket.tickets {
-                // Found the winner
-                winner_id = ticket.purchaser_account_key;
+            if (ticket.lottery_account_key == lottery_account_key) {
+                // Found a lottery ticket
+                if sbu_winner_index >= cidx && sbu_winner_index < cidx + ticket.tickets {
+                    // Found the winner
+                    winner_id = ticket.purchaser_account_key;
 
-                let remainder_balance = lottery_balance.balance - Sbu128::from(prize_pool);
+                    let remainder_balance = lottery_balance.balance - Sbu128::from(prize_pool);
 
-                if !is_negative(remainder_balance) {
-                    // Move the remainder to the creator's balance
-                    creator_balance.balance = creator_balance.balance + remainder_balance;
+                    if !is_negative(remainder_balance) {
+                        // Move the remainder to the creator's balance
+                        creator_balance.balance = creator_balance.balance + remainder_balance;
 
-                    // Reduce the lottery balance by the amount of the remainder
-                    lottery_balance.balance = lottery_balance.balance - remainder_balance;
+                        // Reduce the lottery balance by the amount of the remainder
+                        lottery_balance.balance = lottery_balance.balance - remainder_balance;
 
-                    // Winner will claim in a separate flow
+                        // Winner will claim in a separate flow
+                    }
+                } else {
+                    // Increment the current index by the number of tickets purchased
+                    cidx = cidx + ticket.tickets;
                 }
-            } else {
-                // Increment the current index by the number of tickets purchased
-                cidx = cidx + ticket.tickets;
             }
         }
+    }
+
+    // If the winner_id is still 0, it means no tickets were purchased
+    // We do it after the loop because of public/secret context level errors being thrown
+    // if we try to do an if/else to check ticket count
+    if winner_id == Sbu128::from(0) {
+        // Transfer the entire balance back to creator
+        creator_balance.balance = creator_balance.balance + lottery_balance.balance;
+
+        // If no winner was found, we reset the lottery balance to zero
+        lottery_balance.balance = Sbu128::from(0);
     }
 
     (

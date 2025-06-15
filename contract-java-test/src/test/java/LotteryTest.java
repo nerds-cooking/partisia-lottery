@@ -435,6 +435,72 @@ final class LotteryTest extends JunitContractTest {
                 );
         }
 
+        @ContractTest(previous = "testClaimWinningPrize")
+        void testDrawWithNoTickets() {
+                // Create a fresh lottery
+                BigInteger lotteryId = BigInteger.valueOf(999999999L); // New lottery account key
+                BigInteger prizePool = toBigInteger(100); // Prize pool
+                long deadline = System.currentTimeMillis() + (LOTTERY_DURATION_MS * 2); // Deadline (later than previous
+                                                                                        // tests since we've already
+                                                                                        // time travelled in this test
+                                                                                        // flow)
+
+                // Double check balance is as expected
+                assertSecretBalance(
+                                player1,
+                                toBigInteger(1000), // Initial balance
+                                BigInteger.valueOf(716473264415L) // Player account key
+                );
+
+                createLottery(
+                                player1,
+                                lotteryId, // Lottery account key
+                                BigInteger.valueOf(716473264415L), // Creator account key
+                                entropy(), // Random seed
+                                deadline, // Deadline
+                                LOTTERY_ENTRY_COST, // Entry cost
+                                prizePool // Prize pool
+                );
+
+                // Assert balances
+                assertSecretBalance(
+                                player1,
+                                toBigInteger(1000).subtract(prizePool), // After creating the lottery, balance should be
+                                                                        // reduced by the prize pool
+                                BigInteger.valueOf(716473264415L) // Player account key
+                );
+                assertLotterySecretBalance(
+                                lotteryId, // Lottery account key
+                                prizePool, // Balance after creating the lottery
+                                lotteryId // Lottery account key
+                );
+
+                // Skip forward through time to the deadline
+                blockchain.waitForBlockProductionTime(deadline + 1);
+
+                // Confirm lottery state is as expected before drawing
+                SecretLotteryState secretState = getSecretLotteryState(lotteryId);
+                Assertions.assertThat(secretState).isNotNull();
+                Assertions.assertThat(secretState.tickets()).isEqualTo(BigInteger.ZERO);
+
+                // Attempt to draw the lottery without any tickets purchased
+                drawLottery(player1, lotteryId);
+
+                // All the pool should go back to the creator
+                assertSecretBalance(
+                                player1,
+                                toBigInteger(1000), // Player should receive the prize pool back
+                                BigInteger.valueOf(716473264415L) // Player account key
+                );
+                // Assert the lottery state after drawing
+                LotteryState lotteryState = getLotteryState(lotteryId);
+
+                // Lottery state should skip drawn and go straight to complete since there's no
+                // winner
+                Assertions.assertThat(lotteryState.status().discriminant()).isEqualTo(Lottery.LotteryStatusD.COMPLETE);
+
+        }
+
         // Helper methods for setup
         private void createAccounts() {
                 deployer = blockchain.newAccount(1);

@@ -1087,7 +1087,11 @@ pub fn variable_opened(
 
             // Update the lottery in the state
             let mut lottery = state.get_lottery(&lottery_id).unwrap().clone();
-            lottery.winner_index = Some(secret_state.entropy % secret_state.tickets);
+            lottery.winner_index = if secret_state.tickets == 0 {
+                Some(0)
+            } else {
+                Some(secret_state.entropy % secret_state.tickets)
+            };
 
             state.add_lottery(&lottery);
 
@@ -1107,11 +1111,8 @@ pub fn variable_opened(
 
             // Check that the winner was drawn successfully
             if !result.successful {
-                fail_safely(
-                    &context,
-                    &mut event_groups,
-                    &format!("Could not draw winner for lottery with ID {}", lottery_id),
-                );
+                // If draw was unsuccessful, this indicates the lottery had no tickets sold
+                state.mark_lottery_as_complete(lottery_id);
             } else {
                 // Find winner address (owner in the metadata of the user account)
                 // winner_id is the account ID from ZK data

@@ -49,6 +49,26 @@ export function DashboardPage() {
     [settings]
   );
 
+  const tokenContractAddress = useMemo(
+    () =>
+      settings?.find((setting) => setting.name === 'tokenContractAddress')
+        ?.value,
+    [settings]
+  );
+
+  const contractAddress = useMemo(
+    () =>
+      settings?.find((setting) => setting.name === 'contractAddress')?.value,
+    [settings]
+  );
+
+  const explorerUrl = useMemo(
+    () =>
+      settings?.find((setting) => setting.name === 'explorerUrl')?.value ||
+      'https://explorer.partisiablockchain.com',
+    [settings]
+  );
+
   const [userEntriesPage, setUserEntriesPage] = useState(1);
   const userEntriesLimit = 3;
   const {
@@ -61,20 +81,19 @@ export function DashboardPage() {
     prevPage: userEntriesPrevPage
   } = useGetUserEntries(userEntriesPage, userEntriesLimit);
 
-  // Only fetch balance if connected and authenticated
+  // Always call the hook, but use its values only if connected and authenticated
   const {
-    balance,
-    loading: isBalanceLoading,
-    error,
-    refresh
-  } = isConnected && isAuthenticated
-    ? useCreditsBalance()
-    : {
-        balance: '0',
-        loading: false,
-        error: null,
-        refresh: () => {}
-      };
+    balance: hookBalance,
+    loading: hookIsBalanceLoading,
+    error: hookError,
+    refresh: hookRefresh
+  } = useCreditsBalance();
+
+  const balance = isConnected && isAuthenticated ? hookBalance : '0';
+  const isBalanceLoading =
+    isConnected && isAuthenticated ? hookIsBalanceLoading : false;
+  const error = isConnected && isAuthenticated ? hookError : null;
+  const refresh = isConnected && isAuthenticated ? hookRefresh : () => {};
 
   const { data: stats } = useGetUserStats();
 
@@ -137,6 +156,7 @@ export function DashboardPage() {
               </div>
             )}
           </div>
+
           <div className='mt-4 md:mt-0 flex justify-center md:justify-end w-full md:w-auto'>
             <Button
               onClick={() => navigate('/create-lottery')}
@@ -148,6 +168,19 @@ export function DashboardPage() {
           </div>
         </div>
 
+        {contractAddress && (
+          <div className='flex justify-center mb-4'>
+            <a
+              href={`${explorerUrl}/contracts/${tokenContractAddress}`}
+              target='_blank'
+              rel='noopener noreferrer'
+              className='inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-yellow-500 to-pink-500 text-white font-semibold shadow hover:from-yellow-600 hover:to-pink-600 transition-colors border border-white/10'
+            >
+              <CoinsIcon className='h-4 w-4' />
+              You can mint {tokenSymbol} tokens here for testing
+            </a>
+          </div>
+        )}
         <div className='grid grid-cols-1 md:grid-cols-4 gap-6'>
           <Card className='bg-white/10 backdrop-blur-md border-white/20 relative'>
             {hasAccount && (

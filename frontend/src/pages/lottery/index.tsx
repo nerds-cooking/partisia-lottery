@@ -326,7 +326,8 @@ export function LotteryViewPage() {
                 </p>
               </CardContent>
             </Card>
-          ) : lottery.status === LotteryStatusD.Complete ? (
+          ) : lottery.status === LotteryStatusD.Complete ||
+            lottery.status === LotteryStatusD.Drawn ? (
             lottery.winner &&
             user?.address &&
             lottery.winner.toLowerCase() === user.address.toLowerCase() ? (

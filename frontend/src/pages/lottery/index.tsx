@@ -6,7 +6,6 @@ import MPCExplanation from '@/components/MPCExplanation';
 import { useAuth } from '@/components/providers/auth/useAuth';
 import { useLottery } from '@/components/providers/lottery/useLottery';
 import { usePartisia } from '@/components/providers/partisia/usePartisia';
-import { useSettings } from '@/components/providers/setting/useSettings';
 import PurchaseTicket from '@/components/PurchaseTicket';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog';
+import { useCreditsBalance } from '@/hooks/useCreditsBalance';
 import { useHasAccountOnChain } from '@/hooks/useHasAccountOnChain';
 import { LotteryStatusD } from '@/lib/LotteryApiGenerated';
 import { getStatusColor, getStatusText } from '@/utils/status';
@@ -37,16 +37,9 @@ export function LotteryViewPage() {
   const { user, isAuthenticated } = useAuth();
   const { hasAccount } = useHasAccountOnChain(30000);
   const navigate = useNavigate();
-  const { settings } = useSettings();
   const { lotteryId } = useParams<{ lotteryId: string }>();
   const { isConnected } = usePartisia();
-
-  const tokenSymbol = useMemo(
-    () =>
-      settings?.find((setting) => setting.name === 'tokenSymbol')?.value ||
-      'MPC',
-    [settings]
-  );
+  const { balance, loading: isBalanceLoading } = useCreditsBalance();
 
   const { lottery, loading, error, refreshLottery } = useLottery(
     lotteryId || '0'
@@ -63,7 +56,7 @@ export function LotteryViewPage() {
 
   const [showCreateAccount, setShowCreateAccount] = useState(false);
 
-  if (loading) {
+  if (loading || isBalanceLoading) {
     return (
       <div className='flex items-center justify-center min-h-[60vh]'>
         <LoadingSpinner text='Loading Lottery...' />
@@ -159,7 +152,7 @@ export function LotteryViewPage() {
                     <div>
                       <p className='text-white/60 text-sm'>Prize Pool</p>
                       <p className='text-white font-semibold text-lg'>
-                        {lottery.prizePool} {tokenSymbol}
+                        {lottery.prizePool} Credits
                       </p>
                     </div>
                   </div>
@@ -184,7 +177,7 @@ export function LotteryViewPage() {
                     <div>
                       <p className='text-white/60 text-sm'>Ticket Price</p>
                       <p className='text-white font-semibold'>
-                        {lottery.entryCost} {tokenSymbol}
+                        {lottery.entryCost} Credits
                       </p>
                     </div>
                   </div>
@@ -233,7 +226,8 @@ export function LotteryViewPage() {
             !isDeadlinePassed &&
             isConnected &&
             isAuthenticated &&
-            hasAccount ? (
+            hasAccount &&
+            balance !== '0' ? (
             <PurchaseTicket lottery={lottery} />
           ) : lottery.status === LotteryStatusD.Open && !isConnected ? (
             <Card className='bg-white/10 backdrop-blur-md border-white/20'>
@@ -244,6 +238,37 @@ export function LotteryViewPage() {
                 <Button disabled className='bg-gray-500'>
                   Connect Wallet Required
                 </Button>
+              </CardContent>
+            </Card>
+          ) : lottery.status === LotteryStatusD.Open &&
+            !isDeadlinePassed &&
+            !isAuthenticated ? (
+            <Card className='bg-white/10 backdrop-blur-md border-white/20'>
+              <CardContent className='p-6 text-center'>
+                <p className='text-white/80 mb-4'>
+                  Please sign in to purchase tickets
+                </p>
+                <Button disabled className='bg-gray-500'>
+                  Sign In Required
+                </Button>
+              </CardContent>
+            </Card>
+          ) : lottery.status === LotteryStatusD.Open &&
+            !isDeadlinePassed &&
+            isConnected &&
+            isAuthenticated &&
+            hasAccount &&
+            balance === '0' ? (
+            <Card className='bg-white/10 backdrop-blur-md border-white/20'>
+              <CardContent className='p-6 text-center'>
+                <p className='text-white/80 mb-4'>
+                  You need credits to purchase tickets.
+                </p>
+                <a href='/dashboard'>
+                  <Button className='bg-blue-500'>
+                    Go to Dashboard to Get Credits
+                  </Button>
+                </a>
               </CardContent>
             </Card>
           ) : lottery.status === LotteryStatusD.Open &&

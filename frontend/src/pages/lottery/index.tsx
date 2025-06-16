@@ -1,3 +1,4 @@
+import ClaimPrizeForm from '@/components/ClaimPrizeForm';
 import CountdownTimer from '@/components/CountdownTimer';
 import { CreateAccountForm } from '@/components/CreateAccountForm';
 import DrawLotteryForm from '@/components/DrawLotteryForm';
@@ -331,20 +332,24 @@ export function LotteryViewPage() {
             lottery.winner &&
             user?.address &&
             lottery.winner.toLowerCase() === user.address.toLowerCase() ? (
-              <Card className='bg-white/10 backdrop-blur-md border-white/20 animate-fade-in'>
-                <CardContent className='p-6 text-center'>
-                  <div className='flex flex-col items-center space-y-3'>
-                    <Sparkles className='h-10 w-10 text-yellow-400 animate-bounce' />
-                    <p className='text-white/90 text-xl font-bold'>
-                      🎉 Congratulations! You are the winner! 🎉
-                    </p>
-                    <p className='text-white/80 text-lg break-all'>
-                      Your address:{' '}
-                      <span className='font-mono'>{lottery.winner}</span>
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
+              lottery.status === LotteryStatusD.Drawn ? (
+                <ClaimPrizeForm lottery={lottery} />
+              ) : (
+                <Card className='bg-white/10 backdrop-blur-md border-white/20 animate-fade-in'>
+                  <CardContent className='p-6 text-center'>
+                    <div className='flex flex-col items-center space-y-3'>
+                      <Sparkles className='h-10 w-10 text-yellow-400 animate-bounce' />
+                      <p className='text-white/90 text-xl font-bold'>
+                        🎉 Congratulations! You are the winner! 🎉
+                      </p>
+                      <p className='text-white/80 text-lg break-all'>
+                        Your address:{' '}
+                        <span className='font-mono'>{lottery.winner}</span>
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
             ) : (
               <Card className='bg-white/10 backdrop-blur-md border-white/20 animate-fade-in'>
                 <CardContent className='p-6 text-center'>

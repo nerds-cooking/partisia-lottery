@@ -111,7 +111,7 @@ const CreateLotteryForm: React.FC<CreateLotteryFormProps> = ({
               <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
                 <div className='space-y-2'>
                   <Label htmlFor='prizePool' className='text-white'>
-                    Prize Pool (TT)
+                    Prize Pool (Credits)
                   </Label>
                   <Input
                     id='prizePool'
@@ -129,7 +129,7 @@ const CreateLotteryForm: React.FC<CreateLotteryFormProps> = ({
 
                 <div className='space-y-2'>
                   <Label htmlFor='ticketPrice' className='text-white'>
-                    Ticket Price (TT)
+                    Ticket Price (Credits)
                   </Label>
                   <Input
                     id='ticketPrice'

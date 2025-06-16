@@ -64,13 +64,13 @@ const CreateLotteryPreview: React.FC<CreateLotteryPreviewProps> = ({
                 <div className='flex justify-between'>
                   <span className='text-white/60'>Prize Pool:</span>
                   <span className='text-white font-semibold'>
-                    {formData.prizePool} TT
+                    {formData.prizePool} Credits
                   </span>
                 </div>
                 <div className='flex justify-between'>
                   <span className='text-white/60'>Ticket Price:</span>
                   <span className='text-white font-semibold'>
-                    {formData.ticketPrice} TT
+                    {formData.ticketPrice} Credits
                   </span>
                 </div>
                 <div className='flex justify-between'>

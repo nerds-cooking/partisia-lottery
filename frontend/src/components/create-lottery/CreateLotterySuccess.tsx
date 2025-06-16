@@ -72,12 +72,14 @@ const CreateLotterySuccess: React.FC<CreateLotterySuccessProps> = ({
             <div className='flex justify-center space-x-6'>
               <div className='text-center'>
                 <p className='text-white/60 text-sm'>Prize Pool</p>
-                <p className='text-white font-bold'>{formData.prizePool} TT</p>
+                <p className='text-white font-bold'>
+                  {formData.prizePool} Credits
+                </p>
               </div>
               <div className='text-center'>
                 <p className='text-white/60 text-sm'>Ticket Price</p>
                 <p className='text-white font-bold'>
-                  {formData.ticketPrice} TT
+                  {formData.ticketPrice} Credits
                 </p>
               </div>
             </div>

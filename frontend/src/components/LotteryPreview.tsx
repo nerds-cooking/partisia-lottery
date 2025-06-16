@@ -20,7 +20,7 @@ const LotteryPreview: React.FC<LotteryPreviewProps> = ({ lottery }) => {
         <div className='flex items-center space-x-4 text-white/60'>
           <div className='flex items-center space-x-1'>
             <Trophy className='h-4 w-4' />
-            <span className='text-sm'>{lottery.prizePool} TT</span>
+            <span className='text-sm'>{lottery.prizePool} Credits</span>
           </div>
           <div className='flex items-center space-x-1'>
             <Users className='h-4 w-4' />
@@ -33,7 +33,7 @@ const LotteryPreview: React.FC<LotteryPreviewProps> = ({ lottery }) => {
         <div className='bg-gradient-to-r from-purple-500/30 to-blue-500/30 rounded-lg p-8 text-center border border-white/10'>
           <Trophy className='h-16 w-16 text-yellow-400 mx-auto mb-4' />
           <h3 className='text-xl font-semibold text-white mb-2'>
-            Win {lottery.prizePool} TT
+            Win {lottery.prizePool} Credits
           </h3>
           <p className='text-white/70'>Secure, private, and fair lottery</p>
         </div>

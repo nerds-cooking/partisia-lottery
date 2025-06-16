@@ -72,8 +72,9 @@ export function usePurchaseTickets(lotteryId: string) {
         return purchaseTicketsTxn.signedTransaction.identifier();
       } catch (error: unknown) {
         console.error('Error details:', error);
+        throw error instanceof Error ? error.message : String(error);
       }
     },
-    [lotteryAccountKey, lotteryId, purchaserAccountKey]
+    [lotteryAccountKey, purchaserAccountKey]
   );
 }

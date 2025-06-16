@@ -112,11 +112,9 @@ const LotteryCard: React.FC<LotteryCardProps> = ({ lottery, index = 0 }) => {
               navigate(`/lottery/${lottery.lotteryId}`);
               scrollTo(0, 0);
             }}
-            className={`bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 button-gradient ${
-              isCreator && isDeadlinePassed ? 'border-2 border-yellow-400' : ''
-            }`}
+            className={`bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 button-gradient`}
           >
-            {isDeadlinePassed
+            {isDeadlinePassed && lottery.status === LotteryStatusD.Open
               ? isCreator
                 ? 'Draw Lottery'
                 : 'View Details'

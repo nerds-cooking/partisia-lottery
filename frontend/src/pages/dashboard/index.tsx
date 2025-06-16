@@ -228,6 +228,7 @@ export function DashboardPage() {
                       size='sm'
                       className='bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 button-gradient'
                       onClick={() => setRedeemCreditsModalOpen(true)}
+                      disabled={!balance || balance === '0' || isBalanceLoading}
                     >
                       <CircleMinusIcon className='h-4 w-4' />
                       Redeem

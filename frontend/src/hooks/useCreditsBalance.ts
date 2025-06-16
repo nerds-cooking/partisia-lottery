@@ -1,12 +1,12 @@
 import { useAuth } from '@/components/providers/auth/useAuth';
 import axiosInstance from '@/lib/axios';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useHasAccountOnChain } from './useHasAccountOnChain';
 
-export function useCreditsBalance(intervalMs: number = 30000) {
+export function useCreditsBalance() {
   const { isAuthenticated } = useAuth();
-  const { hasAccount } = useHasAccountOnChain(intervalMs);
+  const { hasAccount } = useHasAccountOnChain();
   const [balance, setBalance] = useState<string>('0');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,20 +28,11 @@ export function useCreditsBalance(intervalMs: number = 30000) {
     }
   }, []);
 
-  const savedCallback = useRef(fetchBalance);
-
-  // Keep latest version of callback
-  useEffect(() => {
-    savedCallback.current = fetchBalance;
-  }, [fetchBalance]);
-
-  // Fetch balance initially and then on interval, only if authenticated
+  // Fetch balance initially only when authenticated and hasAccount
   useEffect(() => {
     if (!isAuthenticated || !hasAccount) return;
-    savedCallback.current(); // initial fetch
-    const id = setInterval(() => savedCallback.current(), intervalMs);
-    return () => clearInterval(id);
-  }, [hasAccount, intervalMs, isAuthenticated]);
+    fetchBalance();
+  }, [isAuthenticated, hasAccount, fetchBalance]);
 
   return {
     balance,

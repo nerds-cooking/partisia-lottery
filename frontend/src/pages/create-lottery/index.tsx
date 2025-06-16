@@ -133,6 +133,8 @@ export function CreateLotteryPage() {
       newErrors.ticketPrice = 'Ticket price must be greater than 0';
     if (Number(formData.duration) <= 0)
       newErrors.duration = 'Duration must be greater than 0';
+    if (Number(formData.prizePool) > Number(balance))
+      newErrors.prizePool = 'Insufficient credits for prize pool';
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -300,6 +302,7 @@ export function CreateLotteryPage() {
           handleChange={handleChange}
           handleSubmit={handleSubmit}
           setStep={setStep}
+          validateForm={validateForm}
         />
       )}
       {step === 'preview' && (

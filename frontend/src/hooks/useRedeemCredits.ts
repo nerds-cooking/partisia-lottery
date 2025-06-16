@@ -64,6 +64,7 @@ export function useRedeemCredits() {
         setStatus('❌ Error occurred');
         setErrorDetails(error instanceof Error ? error.message : String(error));
         console.error('Error details:', error);
+        throw error;
       }
     },
     []

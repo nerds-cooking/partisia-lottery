@@ -61,7 +61,7 @@ const LotteryPreview: React.FC<LotteryPreviewProps> = ({ lottery }) => {
           <div className='text-white/60'>
             <span className='text-sm'>Ticket Price: </span>
             <span className='text-white font-semibold'>
-              {lottery.entryCost} TT
+              {lottery.entryCost} Credits
             </span>
           </div>
         </div>

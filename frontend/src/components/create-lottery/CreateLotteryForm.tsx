@@ -14,6 +14,7 @@ import {
   Trophy
 } from 'lucide-react';
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
 type FormField =
   | 'name'
@@ -30,6 +31,7 @@ interface CreateLotteryFormProps {
   ) => void;
   handleSubmit: (e: React.FormEvent) => void;
   setStep: (step: 'form' | 'preview' | 'success') => void;
+  validateForm: () => boolean;
 }
 
 const CreateLotteryForm: React.FC<CreateLotteryFormProps> = ({
@@ -37,11 +39,13 @@ const CreateLotteryForm: React.FC<CreateLotteryFormProps> = ({
   errors,
   handleChange,
   handleSubmit,
-  setStep
+  setStep,
+  validateForm
 }) => {
+  const navigate = useNavigate();
   return (
-    <div className='space-y-8 animate-fade-in'>
-      <div className='text-center'>
+    <>
+      <div className='text-center mb-4'>
         <h1 className='text-3xl font-bold text-white mb-2'>
           Create a New Lottery
         </h1>
@@ -264,8 +268,10 @@ const CreateLotteryForm: React.FC<CreateLotteryFormProps> = ({
             <Button
               type='button'
               onClick={() => {
-                setStep('preview');
-                scrollTo(0, 0);
+                if (validateForm()) {
+                  setStep('preview');
+                  scrollTo(0, 0);
+                }
               }}
               className='w-full bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600'
             >
@@ -273,7 +279,7 @@ const CreateLotteryForm: React.FC<CreateLotteryFormProps> = ({
             </Button>
             <Button
               type='button'
-              onClick={() => alert('Feature coming soon!')}
+              onClick={() => navigate('/dashboard')}
               variant='outline'
               className='w-full border-white/20 text-white hover:bg-white/10'
             >
@@ -282,7 +288,7 @@ const CreateLotteryForm: React.FC<CreateLotteryFormProps> = ({
           </div>
         </div>
       </form>
-    </div>
+    </>
   );
 };
 

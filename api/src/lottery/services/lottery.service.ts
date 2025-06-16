@@ -19,7 +19,10 @@ import { SessionUser } from 'express-session';
 import { Model } from 'mongoose';
 import { SettingService } from 'src/settings/services/setting.service';
 import { UserService } from 'src/users/services/user.service';
-import { deserializeState } from 'src/utils/LotteryApiGenerated';
+import {
+  deserializeState,
+  LotteryStatusD,
+} from 'src/utils/LotteryApiGenerated';
 import { CreateLotteryPayload } from '../payloads/CreateLottery.payload';
 import { GetLotteriesPayload } from '../payloads/GetLotteriesPayload';
 import { LotteryEntry } from '../schemas/lottery-entries.schema';
@@ -438,6 +441,12 @@ export class LotteryService {
       .find({ userId: user._id })
       .lean();
 
+    const { lotteries } = await this.getOnChainState();
+
+    const wins = lotteries.filter(
+      (l) => l.winner === address && l.status === LotteryStatusD.Complete,
+    );
+
     return {
       totalTickets: entries.reduce(
         (sum, entry) => sum + Number(entry.entryCount),
@@ -450,7 +459,7 @@ export class LotteryService {
           0,
         )
         .toString(10),
-      totalWins: '0',
+      totalWins: wins.length.toString(10),
     };
   }
 }

@@ -11,6 +11,7 @@ import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { type Lottery } from '../../types';
 import CountdownTimer from '../CountdownTimer';
+import { useAuth } from '../providers/auth/useAuth';
 import { useSettings } from '../providers/setting/useSettings';
 
 interface LotteryCardProps {
@@ -21,6 +22,7 @@ interface LotteryCardProps {
 const LotteryCard: React.FC<LotteryCardProps> = ({ lottery, index = 0 }) => {
   const navigate = useNavigate();
   const { settings } = useSettings();
+  const { user } = useAuth();
 
   const tokenSymbol = useMemo(
     () =>
@@ -30,6 +32,9 @@ const LotteryCard: React.FC<LotteryCardProps> = ({ lottery, index = 0 }) => {
   );
 
   const animationDelay = `${Math.min((index % 5) * 0.2 + 0.2, 1.0)}s`;
+
+  const isCreator = user && lottery.createdBy && user.id === lottery.createdBy;
+  const isDeadlinePassed = new Date() > new Date(lottery.deadline);
 
   return (
     <Card
@@ -107,11 +112,17 @@ const LotteryCard: React.FC<LotteryCardProps> = ({ lottery, index = 0 }) => {
               navigate(`/lottery/${lottery.lotteryId}`);
               scrollTo(0, 0);
             }}
-            className='bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 button-gradient'
+            className={`bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 button-gradient ${
+              isCreator && isDeadlinePassed ? 'border-2 border-yellow-400' : ''
+            }`}
           >
-            {lottery.status === LotteryStatusD.Open
-              ? 'Enter Lottery'
-              : 'View Details'}
+            {isDeadlinePassed
+              ? isCreator
+                ? 'Draw Lottery'
+                : 'View Details'
+              : lottery.status === LotteryStatusD.Open
+                ? 'Enter Lottery'
+                : 'View Details'}
           </Button>
         </div>
       </CardContent>
